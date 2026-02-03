@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AWR Connect SDK – Documentation &amp; Implementation</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1 class="logo">AWR Connect SDK</h1>
+      <p class="tagline">Custom Channel client – documentation and example implementation</p>
+    </div>
+  </header>
+
+  <nav class="nav-bar">
+    <div class="container">
+      <a href="#overview">Overview</a>
+      <a href="#installation">Installation</a>
+      <a href="#quick-start">Quick start</a>
+      <a href="#api">API reference</a>
+      <a href="#types">Types</a>
+      <a href="#events">Events</a>
+      <a href="#auth">Authentication</a>
+      <a href="#example">Live example</a>
+    </div>
+  </nav>
+
+  <main class="main container">
+    <section id="overview" class="doc-section">
+      <h2>Overview</h2>
+      <p>
+        The <strong>AWR Connect Client JS SDK</strong> (<code>awr-client-js-sdk</code>) lets you connect your own UI to
+        the AWR Connect chat platform via a <strong>Custom Channel</strong>. You use the channel’s connection key
+        (<code>channelId</code>) and secret to send and receive messages over REST.
+      </p>
+      <ul>
+        <li>No persistent WebSocket in v1 – all operations are REST (fetch).</li>
+        <li>Use a stable <code>sessionId</code> per visitor so conversation history is consistent.</li>
+        <li>Obtain the secret when creating the Custom Channel in the AWR Connect webapp; it is shown only once.</li>
+      </ul>
+    </section>
+
+    <section id="installation" class="doc-section">
+      <h2>Installation</h2>
+      <p>From your project root:</p>
+      <pre class="code-block"><code>pnpm add awr-client-js-sdk
+# or
+npm install awr-client-js-sdk</code></pre>
+      <p>In the browser, you can load a built UMD bundle from your own build (e.g. from the
+        <code>awr-connect-client-js-sdk</code> repo):
+      </p>
+      <pre
+        class="code-block"><code>&lt;script src="path/to/awr-connect-client-js-sdk/dist/index.umd.js"&gt;&lt;/script&gt;</code></pre>
+    </section>
+
+    <section id="quick-start" class="doc-section">
+      <h2>Quick start</h2>
+      <pre class="code-block"><code>import { AwrConnectClient } from "awr-client-js-sdk";
+
+const client = new AwrConnectClient({
+  baseUrl: "https://your-api.example.com",
+  channelId: "your-custom-channel-id",
+  secret: "your-channel-secret",
+});
+
+client.connect();
+
+await client.sendMessage("Hello!", {
+  sessionId: "user-session-123",
+  visitorName: "Alice",
+});
+
+const channel = await client.getChannelInfo();
+
+const { messages, pagination } = await client.getConversation("user-session-123", {
+  page: 1,
+  limit: 20,
+});
+
+client.on("error", (err) => console.error(err));
+client.disconnect();</code></pre>
+    </section>
+
+    <section id="api" class="doc-section">
+      <h2>API reference</h2>
+      <dl class="api-dl">
+        <dt><code>constructor(config?: AwrConnectConfig)</code></dt>
+        <dd>Create a client. Optionally pass <code>baseUrl</code>, <code>channelId</code>, and <code>secret</code>.</dd>
+
+        <dt><code>setConfig(config: AwrConnectConfig): void</code></dt>
+        <dd>Set or update configuration.</dd>
+
+        <dt><code>connect(config?: AwrConnectConfig): void</code></dt>
+        <dd>Validate config and mark client ready. Throws if <code>baseUrl</code>, <code>channelId</code>, or
+          <code>secret</code> is missing. Emits <code>connection_ready</code> on success.
+        </dd>
+
+        <dt><code>disconnect(): void</code></dt>
+        <dd>Mark client disconnected.</dd>
+
+        <dt><code>isConnected(): boolean</code></dt>
+        <dd>Return whether the client is in a connected state.</dd>
+
+        <dt>
+          <code>sendMessage(textOrContent: string, options: SendMessageOptions): Promise&lt;{ success: boolean; message?: string }&gt;</code>
+        </dt>
+        <dd>Send a message as the contact. Options: <code>sessionId</code> (required), <code>visitorName?</code>,
+          <code>messageType?</code> ('TEXT' | 'media'), <code>socialMessageId?</code>. Resolves with
+          <code>{ success: true }</code> or <code>{ success: false, message }</code> on API error.
+        </dd>
+
+        <dt><code>getChannelInfo(): Promise&lt;ChannelInfoResponse&gt;</code></dt>
+        <dd>GET channel details (secret not included).</dd>
+
+        <dt>
+          <code>getConversation(sessionId: string, options?: GetConversationOptions): Promise&lt;GetConversationResponse&gt;</code>
+        </dt>
+        <dd>GET paginated messages for the given <code>sessionId</code>. Options: <code>page?</code> (default 1),
+          <code>limit?</code> (default 20). On 404 returns empty messages and pagination.
+        </dd>
+      </dl>
+    </section>
+
+    <section id="types" class="doc-section">
+      <h2>Types</h2>
+      <pre class="code-block"><code>interface AwrConnectConfig {
+  baseUrl: string;
+  channelId: string;
+  secret: string;
+}
+
+interface SendMessageOptions {
+  sessionId: string;
+  visitorName?: string;
+  messageType?: 'TEXT' | 'media';
+  socialMessageId?: string | null;
+}
+
+interface GetConversationOptions {
+  page?: number;
+  limit?: number;
+}
+
+interface SimplifiedMessage {
+  _id: string;
+  senderType: 'CONTACT' | 'AGENT';
+  messageType: string;
+  textMessage?: string;
+  status?: string;
+  socialMessageId?: string | null;
+  metadata?: Record&lt;string, unknown&gt;;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface Pagination {
+  currentPage: number;
+  limit: number;
+  totalMessages: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+  nextPage: number | null;
+  prevPage: number | null;
+}
+
+interface GetConversationResponse {
+  messages: SimplifiedMessage[];
+  pagination: Pagination;
+}
+
+interface ChannelInfoResponse {
+  id: number;
+  name: string;
+  channelUid: string;
+  channelType: string;
+  channelConfig: Record&lt;string, unknown&gt;;
+}</code></pre>
+    </section>
+
+    <section id="events" class="doc-section">
+      <h2>Events</h2>
+      <p>The client extends EventEmitter. Subscribe with <code>client.on(eventName, handler)</code>.</p>
+      <ul>
+        <li><code>connection_ready</code> – emitted when <code>connect()</code> succeeds.</li>
+        <li><code>connection_error</code> – emitted with an <code>Error</code> when <code>connect()</code> fails (e.g.
+          missing config).</li>
+        <li><code>error</code> – emitted with an <code>Error</code> on connection or send failures.</li>
+        <li><code>message</code> – payload: <code>SimplifiedMessage</code> (for future use when receiving messages).
+        </li>
+      </ul>
+    </section>
+
+    <section id="auth" class="doc-section">
+      <h2>Authentication</h2>
+      <p>All requests use the channel <strong>secret</strong> in the <code>X-AWR-Channel-Secret</code> header. Get the
+        connection key and secret when creating a Custom Channel in the AWR Connect webapp; the secret is shown only
+        once and must be stored securely.</p>
+    </section>
+
+    <section id="example" class="doc-section">
+      <h2>Live example</h2>
+      <p>Enter your Custom Channel <strong>id</strong> (Channel ID) and <strong>secret</strong>, then click <strong>Open
+          chat</strong> to use the SDK in a real-time chat.</p>
+      <p>Use the form below to try the SDK (or the same REST calls if the SDK is not loaded). Fill in your API base URL,
+        channel ID (id), secret, and optionally session ID and visitor name.</p>
+      <p class="note">The SDK is loaded from <code>unpkg</code> (see script below); no local build required. Or build
+        the SDK in <code>awr-connect-client-js-sdk</code> and
+        serve this folder from a local server. Otherwise the example uses <code>fetch</code> to demonstrate the same
+        endpoints.
+      </p>
+
+      <div class="example-panel">
+        <!-- Credentials form: shown when not in chat -->
+        <div id="credentials-wrap">
+          <form id="config-form" class="example-form">
+            <div class="form-row">
+              <label for="baseUrl">Base URL</label>
+              <input id="baseUrl" type="url" placeholder="https://your-api.example.com" value="" required />
+            </div>
+            <div class="form-row">
+              <label for="channelId">Channel ID (id)</label>
+              <input id="channelId" type="text" placeholder="your-custom-channel-id" value="" required />
+            </div>
+            <div class="form-row">
+              <label for="secret">Secret</label>
+              <input id="secret" type="password" placeholder="your-channel-secret" value="" required />
+            </div>
+            <div class="form-row">
+              <label for="sessionId">Session ID</label>
+              <input id="sessionId" type="text" placeholder="e.g. user-session-123 (optional)" value="" />
+            </div>
+            <div class="form-row">
+              <label for="visitorName">Visitor name</label>
+              <input id="visitorName" type="text" placeholder="e.g. Alice" value="" />
+            </div>
+            <div class="form-actions">
+              <button type="button" id="btn-open-chat" class="btn-primary">Open chat</button>
+              <button type="button" id="btn-connect">Connect</button>
+              <button type="button" id="btn-send" disabled>Send message</button>
+              <button type="button" id="btn-channel" disabled>Get channel info</button>
+              <button type="button" id="btn-conversation" disabled>Get conversation</button>
+              <button type="button" id="btn-disconnect" disabled>Disconnect</button>
+            </div>
+          </form>
+          <div class="example-send-row">
+            <label for="messageText">Message text</label>
+            <input id="messageText" type="text" placeholder="Hello!" value="Hello from SDK docs" />
+          </div>
+          <div class="log-wrap">
+            <h3>Log</h3>
+            <pre id="log-output" class="log-output"></pre>
+            <button type="button" id="btn-clear-log" class="btn-clear">Clear log</button>
+          </div>
+        </div>
+
+        <!-- Chat panel: shown when in chat -->
+        <div id="chat-panel" class="chat-panel" hidden>
+          <div class="chat-header">
+            <span id="chat-header-info" class="chat-header-info">Session · Visitor</span>
+            <button type="button" id="btn-leave-chat" class="btn-leave-chat">Leave chat</button>
+          </div>
+          <div id="chat-error-banner" class="chat-error-banner" hidden></div>
+          <div id="chat-messages" class="chat-messages"></div>
+          <div class="chat-send-row">
+            <input id="chat-input" type="text" placeholder="Type a message..." autocomplete="off" />
+            <button type="button" id="btn-chat-send">Send</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>AWR Connect SDK documentation &amp; example implementation. See <code>awr-connect-client-js-sdk</code> for the
+        package source and <code>TESTING.md</code> for testing against a running API.</p>
+    </div>
+  </footer>
+
+  <script src="https://unpkg.com/awr-client-js-sdk@0.1.1/dist/index.umd.js"></script>
+  <script src="app.js"></script>
+</body>
+
+</html>
