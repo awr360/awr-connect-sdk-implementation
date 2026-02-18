@@ -7,11 +7,21 @@
 (function () {
   "use strict";
 
-  // Resolve SDK from UMD global (microbundle may expose as awrClientJsSdk or AwrConnectClient)
-  var AwrConnectClient =
-    (typeof window !== "undefined" && window.AwrConnectClient) ||
-    (typeof window !== "undefined" && window.awrClientJsSdk && window.awrClientJsSdk.AwrConnectClient) ||
-    undefined;
+  // Resolve SDK constructor from known UMD global shapes across package versions/builds.
+  function resolveAwrConnectClient() {
+    if (typeof window === "undefined") return undefined;
+    if (window.AwrConnectClient) return window.AwrConnectClient;
+    if (window.awrClientJsSdk && window.awrClientJsSdk.AwrConnectClient) return window.awrClientJsSdk.AwrConnectClient;
+    if (
+      window.awrClientJsSdk &&
+      window.awrClientJsSdk.default &&
+      window.awrClientJsSdk.default.AwrConnectClient
+    ) {
+      return window.awrClientJsSdk.default.AwrConnectClient;
+    }
+    return undefined;
+  }
+  var AwrConnectClient = resolveAwrConnectClient();
 
   const baseUrlEl = document.getElementById("baseUrl");
   const channelIdEl = document.getElementById("channelId");

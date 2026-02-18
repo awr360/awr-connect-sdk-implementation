@@ -18,7 +18,7 @@ AWR Connect supports a **Custom Channel**: you use your own UI and connect with 
 
 1. **Documents** the SDK: config, methods, events, types, and authentication.
 2. **Demonstrates** the SDK in a real chat: you enter credentials, open a chat, send messages, and receive agent replies in real time (Socket.IO).
-3. **Removes guesswork**: no build step for the demo—the SDK is loaded from **unpkg**; you only need a running AWR Connect API and a Custom Channel.
+3. **Removes guesswork**: no build step for the demo—the SDK is loaded from **unpkg** (`awr-client-js-sdk@0.1.2`); you only need a running AWR Connect API and a Custom Channel.
 
 **When to use this project**
 
@@ -59,7 +59,7 @@ No local SDK build is required—the SDK is loaded from **unpkg**.
    - Same credentials; use these to try individual SDK operations. The **Log** area shows requests and responses.
 
 4. **SDK loading**
-   - The page loads the SDK from **unpkg** (`awr-client-js-sdk`), so no local build is required. To use a local build instead, replace the unpkg script in `index.html` with:
+   - The page loads the SDK from **unpkg** (`awr-client-js-sdk@0.1.2`), so no local build is required. To use a local build instead, replace the unpkg script in `index.html` with:
      ```html
      <script src="../awr-connect-client-js-sdk/dist/index.umd.js"></script>
      ```
@@ -80,10 +80,13 @@ No local SDK build is required—the SDK is loaded from **unpkg**.
 
 ## SDK package
 
-The SDK lives in the **awr-connect-client-js-sdk** package. To use it in your own app:
+Use the npm package **awr-client-js-sdk**. To use it in your own app:
 
 ```bash
 pnpm add awr-client-js-sdk
 ```
 
-See that package’s `README.md` and `TESTING.md` for full usage and how to test against a running AWR Connect API.
+See the package page and repository docs for full usage and testing:
+
+- npm: `https://www.npmjs.com/package/awr-client-js-sdk`
+- repository: `https://github.com/awr-connect/awr-connect-client-js-sdk`
