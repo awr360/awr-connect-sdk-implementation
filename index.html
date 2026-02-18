@@ -35,12 +35,13 @@
       <p>
         The <strong>AWR Connect Client JS SDK</strong> (<code>awr-client-js-sdk</code>) lets you connect your own UI to
         the AWR Connect chat platform via a <strong>Custom Channel</strong>. You use the channel’s connection key
-        (<code>channelId</code>) and secret to send and receive messages over REST.
+        (<code>channelId</code>) and secret to send messages over REST and receive agent replies in real time over Socket.IO.
       </p>
       <ul>
-        <li>No persistent WebSocket in v1 – all operations are REST (fetch).</li>
-        <li>Use a stable <code>sessionId</code> per visitor so conversation history is consistent.</li>
-        <li>Obtain the secret when creating the Custom Channel in the AWR Connect webapp; it is shown only once.</li>
+        <li><strong>Real-time:</strong> Pass <code>sessionId</code> in config and call <code>connect()</code>; the SDK opens Socket.IO and joins a session room. Agent messages arrive via <code>message</code>.</li>
+        <li><strong>REST:</strong> <code>sendMessage()</code> and <code>getConversation(sessionId, options)</code>; call <code>connect()</code> first.</li>
+        <li>Use a stable <code>sessionId</code> per visitor (no <code>:</code>). <code>options.sessionId</code> is required on every <code>sendMessage()</code>.</li>
+        <li>Obtain the connection key and secret when creating the Custom Channel in the webapp; the secret is shown only once.</li>
       </ul>
     </section>
 
@@ -57,29 +58,30 @@
 
     <section id="quick-start" class="doc-section">
       <h2>Quick start</h2>
+      <p>Config uses <code>baseUrl</code>, <code>channelId</code>, and <code>secret</code>. For real-time receive, add <code>sessionId</code> (and optional <code>visitorName</code>). Register listeners before <code>connect()</code>. Send only after <code>connection_ready</code> fires (no payload). <code>getConversation(sessionId, options)</code> requires the client to be connected.</p>
       <pre class="code-block"><code>import { AwrConnectClient } from "awr-client-js-sdk";
 
+const sessionId = "user-session-123";
 const client = new AwrConnectClient({
   baseUrl: "https://your-api.example.com",
-  channelId: "your-custom-channel-id",
+  channelId: "your-connection-key",
   secret: "your-channel-secret",
-});
-
-client.connect();
-
-await client.sendMessage("Hello!", {
-  sessionId: "user-session-123",
+  sessionId,
   visitorName: "Alice",
 });
 
-const channel = await client.getChannelInfo();
-
-const { messages, pagination } = await client.getConversation("user-session-123", {
-  page: 1,
-  limit: 20,
+client.on("connection_ready", () => {
+  // Only then send or load history
 });
-
+client.on("connection_error", (err) => console.error(err));
+client.on("message", (msg) => console.log("Agent:", msg.textMessage, msg.mediaUrl));
 client.on("error", (err) => console.error(err));
+
+client.connect();
+
+// After connection_ready:
+await client.sendMessage("Hello!", { sessionId, visitorName: "Alice" });
+const { messages, pagination } = await client.getConversation(sessionId, { page: 1, limit: 20 });
 client.disconnect();</code></pre>
     </section>
 
@@ -87,39 +89,28 @@ client.disconnect();</code></pre>
       <h2>API reference</h2>
       <dl class="api-dl">
         <dt><code>constructor(config?: AwrConnectConfig)</code></dt>
-        <dd>Create a client. Optionally pass <code>baseUrl</code>, <code>channelId</code>, and <code>secret</code>.</dd>
+        <dd>Create a client. Pass <code>baseUrl</code>, <code>channelId</code>, <code>secret</code>; optionally <code>sessionId</code>, <code>visitorName</code>, <code>requestId</code>.</dd>
 
         <dt><code>setConfig(config: AwrConnectConfig): void</code></dt>
         <dd>Set or update configuration.</dd>
 
         <dt><code>connect(config?: AwrConnectConfig): void</code></dt>
-        <dd>Validate config and mark client ready. Throws if <code>baseUrl</code>, <code>channelId</code>, or
-          <code>secret</code> is missing. Emits <code>connection_ready</code> on success.
-        </dd>
+        <dd>Validate config and mark client connected. If <code>sessionId</code> is set, opens Socket.IO to <code>/custom</code> and joins the session room; <code>connection_ready</code> fires when the server acknowledges (no payload). 10s join timeout. Throws if <code>baseUrl</code>, <code>channelId</code>, or <code>secret</code> is missing.</dd>
 
         <dt><code>disconnect(): void</code></dt>
-        <dd>Mark client disconnected.</dd>
+        <dd>Close Socket.IO (if open) and mark client disconnected.</dd>
 
         <dt><code>isConnected(): boolean</code></dt>
         <dd>Return whether the client is in a connected state.</dd>
 
-        <dt>
-          <code>sendMessage(textOrContent: string, options: SendMessageOptions): Promise&lt;{ success: boolean; message?: string }&gt;</code>
-        </dt>
-        <dd>Send a message as the contact. Options: <code>sessionId</code> (required), <code>visitorName?</code>,
-          <code>messageType?</code> ('TEXT' | 'media'), <code>socialMessageId?</code>. Resolves with
-          <code>{ success: true }</code> or <code>{ success: false, message }</code> on API error.
-        </dd>
+        <dt><code>sendMessage(textOrContent: string, options: SendMessageOptions): Promise&lt;{ success: boolean; message?: string }&gt;</code></dt>
+        <dd>Send a text or media message. <strong><code>options.sessionId</code> is required</strong> (must not contain <code>:</code>). Options: <code>visitorName?</code>, <code>messageType?</code> ('TEXT' | 'media'), <code>mediaUrl?</code> (required when messageType is 'media'), <code>mediaType?</code> ('audio' | 'image' | 'video' | 'document'), <code>socialMessageId?</code>. For media, first arg is caption. Returns <code>{ success: true }</code> or <code>{ success: false, message }</code>; emits <code>error</code> on API failure. Throws if not connected or validation fails.</dd>
 
         <dt><code>getChannelInfo(): Promise&lt;ChannelInfoResponse&gt;</code></dt>
-        <dd>GET channel details (secret not included).</dd>
+        <dd>GET channel details (secret not included). Requires client connected.</dd>
 
-        <dt>
-          <code>getConversation(sessionId: string, options?: GetConversationOptions): Promise&lt;GetConversationResponse&gt;</code>
-        </dt>
-        <dd>GET paginated messages for the given <code>sessionId</code>. Options: <code>page?</code> (default 1),
-          <code>limit?</code> (default 20). On 404 returns empty messages and pagination.
-        </dd>
+        <dt><code>getConversation(sessionId: string, options?: GetConversationOptions): Promise&lt;GetConversationResponse&gt;</code></dt>
+        <dd>GET paginated messages for <code>sessionId</code>. <strong>Call <code>connect()</code> first.</strong> Options: <code>page?</code> (default 1), <code>limit?</code> (default 20). Returns <code>{ messages, pagination }</code>; pagination has <code>currentPage</code>, <code>totalMessages</code>, <code>hasNextPage</code>, <code>nextPage</code>, etc. On 404 returns empty messages and default pagination (no throw).</dd>
       </dl>
     </section>
 
@@ -129,12 +120,17 @@ client.disconnect();</code></pre>
   baseUrl: string;
   channelId: string;
   secret: string;
+  sessionId?: string;   // required for real-time receive; must not contain ":"
+  visitorName?: string;
+  requestId?: string;   // sent as X-Request-Id
 }
 
 interface SendMessageOptions {
-  sessionId: string;
+  sessionId: string;    // required; must not contain ":"
   visitorName?: string;
   messageType?: 'TEXT' | 'media';
+  mediaUrl?: string;    // required when messageType is 'media'
+  mediaType?: 'audio' | 'image' | 'video' | 'document';
   socialMessageId?: string | null;
 }
 
@@ -148,6 +144,8 @@ interface SimplifiedMessage {
   senderType: 'CONTACT' | 'AGENT';
   messageType: string;
   textMessage?: string;
+  mediaType?: string;
+  mediaUrl?: string;    // long-lived URL when from API
   status?: string;
   socialMessageId?: string | null;
   metadata?: Record&lt;string, unknown&gt;;
@@ -182,14 +180,12 @@ interface ChannelInfoResponse {
 
     <section id="events" class="doc-section">
       <h2>Events</h2>
-      <p>The client extends EventEmitter. Subscribe with <code>client.on(eventName, handler)</code>.</p>
+      <p>The client extends EventEmitter. Subscribe with <code>client.on(eventName, handler)</code>. Attach listeners <strong>before</strong> calling <code>connect()</code>.</p>
       <ul>
-        <li><code>connection_ready</code> – emitted when <code>connect()</code> succeeds.</li>
-        <li><code>connection_error</code> – emitted with an <code>Error</code> when <code>connect()</code> fails (e.g.
-          missing config).</li>
-        <li><code>error</code> – emitted with an <code>Error</code> on connection or send failures.</li>
-        <li><code>message</code> – payload: <code>SimplifiedMessage</code> (for future use when receiving messages).
-        </li>
+        <li><code>connection_ready</code> – emitted when the Socket.IO join is acknowledged. <strong>No payload.</strong> Only after this should you send messages in real-time mode.</li>
+        <li><code>connection_error</code> – emitted with an <code>Error</code> when connect or join fails (e.g. wrong secret, wrong channelId, sessionId contains <code>:</code>, or 10s timeout).</li>
+        <li><code>error</code> – emitted with an <code>Error</code> on connection or request (send/getConversation) failures.</li>
+        <li><code>message</code> – payload: <code>SimplifiedMessage</code>. Fired when an agent sends a message to this session (real-time). Check <code>messageType</code> ('text' or 'media') and <code>mediaType</code> / <code>mediaUrl</code> for media.</li>
       </ul>
     </section>
 
