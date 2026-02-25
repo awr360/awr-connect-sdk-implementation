@@ -452,6 +452,21 @@ body {
   font-size: 0.85rem;
 }
 
+.chat-msg-media-img {
+  max-width: 100%;
+  max-height: 280px;
+  width: auto;
+  height: auto;
+  border-radius: 6px;
+  display: block;
+}
+
+.chat-msg-media-audio {
+  max-width: 100%;
+  min-width: 240px;
+  height: 36px;
+}
+
 .chat-msg-media a {
   color: var(--accent);
   text-decoration: none;
@@ -488,13 +503,31 @@ body {
 
 .chat-send-row {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
   border-top: 1px solid var(--border);
   background: var(--bg-input);
 }
 
-.chat-send-row input {
+.btn-chat-attach {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.btn-chat-attach:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.chat-send-row input[type="text"] {
   flex: 1;
   padding: 0.5rem 0.75rem;
   font-size: 0.95rem;
@@ -505,12 +538,12 @@ body {
   border-radius: 6px;
 }
 
-.chat-send-row input:focus {
+.chat-send-row input[type="text"]:focus {
   outline: none;
   border-color: var(--accent);
 }
 
-.chat-send-row button {
+.chat-send-row button:not(.btn-chat-attach) {
   padding: 0.5rem 1rem;
   font-size: 0.9rem;
   font-weight: 500;
@@ -521,7 +554,7 @@ body {
   cursor: pointer;
 }
 
-.chat-send-row button:hover {
+.chat-send-row button:not(.btn-chat-attach):hover {
   background: var(--accent-hover);
 }
 

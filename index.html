@@ -21,6 +21,7 @@
       <a href="#overview">Overview</a>
       <a href="#installation">Installation</a>
       <a href="#quick-start">Quick start</a>
+      <a href="#media">Media upload &amp; display</a>
       <a href="#api">API reference</a>
       <a href="#types">Types</a>
       <a href="#events">Events</a>
@@ -40,7 +41,8 @@
       <ul>
         <li><strong>Real-time:</strong> Pass <code>sessionId</code> in config and call <code>connect()</code>; the SDK opens Socket.IO and joins a session room. Agent messages arrive via <code>message</code>.</li>
         <li><strong>REST:</strong> <code>sendMessage()</code> and <code>getConversation(sessionId, options)</code>; call <code>connect()</code> first.</li>
-        <li>Use a stable <code>sessionId</code> per visitor (no <code>:</code>). <code>options.sessionId</code> is required on every <code>sendMessage()</code>.</li>
+        <li><strong>Media:</strong> Use <code>uploadMedia(file, sessionId, mediaType)</code> to upload, then <code>sendMessage(caption, { sessionId, messageType: 'media', mediaUrl, mediaType })</code>. Incoming and history messages include pre-signed <code>mediaUrl</code> (no user-id required).</li>
+        <li>Use a stable <code>sessionId</code> per visitor (must not contain <code>:</code>). <code>options.sessionId</code> is required on every <code>sendMessage()</code> and <code>uploadMedia()</code>.</li>
         <li>Obtain the connection key and secret when creating the Custom Channel in the webapp; the secret is shown only once.</li>
       </ul>
     </section>
@@ -85,6 +87,15 @@ const { messages, pagination } = await client.getConversation(sessionId, { page:
 client.disconnect();</code></pre>
     </section>
 
+    <section id="media" class="doc-section">
+      <h2>Media upload &amp; display</h2>
+      <p><strong>Upload flow:</strong> Call <code>uploadMedia(file, sessionId, mediaType)</code> (requires <code>connect()</code> first). The API returns a <strong>pre-signed <code>mediaUrl</code></strong>. Then send it as a media message: <code>sendMessage(caption, { sessionId, messageType: 'media', mediaUrl, mediaType })</code>. Supported <code>mediaType</code>: <code>'image'</code>, <code>'audio'</code>, <code>'document'</code>.</p>
+      <p><strong>Size limits:</strong> Image 10 MB, audio 16 MB, document 25 MB. Allowed types: common image/audio MIME types and PDF, DOC/DOCX, PPT/PPTX, XLS/XLSX, TXT.</p>
+      <p><strong>Pre-signed URLs:</strong> Messages returned by <code>getConversation()</code> and real-time <code>message</code> events include <code>mediaUrl</code> that are already pre-signed and usable in the browser (images, audio, documents). The custom channel path does not require a user-id; links are generated with a fixed expiry.</p>
+      <p><strong>Link lifetime:</strong> Upload and outbound media URLs expire in <strong>2 hours</strong>; history conversion uses <strong>1 hour</strong>. Use or cache URLs within that window.</p>
+      <p><strong>Display:</strong> This example renders images inline (<code>&lt;img&gt;</code>), audio with <code>&lt;audio controls&gt;</code>, and documents as download links. Use <code>messageType</code> and <code>mediaType</code> to choose the right UI.</p>
+    </section>
+
     <section id="api" class="doc-section">
       <h2>API reference</h2>
       <dl class="api-dl">
@@ -103,14 +114,17 @@ client.disconnect();</code></pre>
         <dt><code>isConnected(): boolean</code></dt>
         <dd>Return whether the client is in a connected state.</dd>
 
+        <dt><code>uploadMedia(file: File, sessionId: string, mediaType: 'image' | 'audio' | 'document'): Promise&lt;{ mediaUrl: string }&gt;</code></dt>
+        <dd>Upload a file for the given <code>sessionId</code>. Requires client connected. Returns <code>{ mediaUrl }</code> (pre-signed, 2h expiry). Then call <code>sendMessage(caption, { sessionId, messageType: 'media', mediaUrl, mediaType })</code>. Subject to server rate limits (e.g. 30 uploads per minute per IP).</dd>
+
         <dt><code>sendMessage(textOrContent: string, options: SendMessageOptions): Promise&lt;{ success: boolean; message?: string }&gt;</code></dt>
-        <dd>Send a text or media message. <strong><code>options.sessionId</code> is required</strong> (must not contain <code>:</code>). Options: <code>visitorName?</code>, <code>messageType?</code> ('TEXT' | 'media'), <code>mediaUrl?</code> (required when messageType is 'media'), <code>mediaType?</code> ('audio' | 'image' | 'video' | 'document'), <code>socialMessageId?</code>. For media, first arg is caption. Returns <code>{ success: true }</code> or <code>{ success: false, message }</code>; emits <code>error</code> on API failure. Throws if not connected or validation fails.</dd>
+        <dd>Send a text or media message. <strong><code>options.sessionId</code> is required</strong> (must not contain <code>:</code>). Options: <code>visitorName?</code>, <code>messageType?</code> ('TEXT' | 'media'), <code>mediaUrl?</code> (required when messageType is 'media'; use URL from <code>uploadMedia()</code>), <code>mediaType?</code> ('audio' | 'image' | 'video' | 'document'), <code>socialMessageId?</code>. For media, first arg is caption. Returns <code>{ success: true }</code> or <code>{ success: false, message }</code>; emits <code>error</code> on API failure. Throws if not connected or validation fails.</dd>
 
         <dt><code>getChannelInfo(): Promise&lt;ChannelInfoResponse&gt;</code></dt>
         <dd>GET channel details (secret not included). Requires client connected.</dd>
 
         <dt><code>getConversation(sessionId: string, options?: GetConversationOptions): Promise&lt;GetConversationResponse&gt;</code></dt>
-        <dd>GET paginated messages for <code>sessionId</code>. <strong>Call <code>connect()</code> first.</strong> Options: <code>page?</code> (default 1), <code>limit?</code> (default 20). Returns <code>{ messages, pagination }</code>; pagination has <code>currentPage</code>, <code>totalMessages</code>, <code>hasNextPage</code>, <code>nextPage</code>, etc. On 404 returns empty messages and default pagination (no throw).</dd>
+        <dd>GET paginated messages for <code>sessionId</code>. <strong>Call <code>connect()</code> first.</strong> Options: <code>page?</code> (default 1), <code>limit?</code> (default 20). Returns <code>{ messages, pagination }</code>; <code>messages[].mediaUrl</code> are pre-signed and usable directly (e.g. images, audio, documents). Pagination has <code>currentPage</code>, <code>totalMessages</code>, <code>hasNextPage</code>, <code>nextPage</code>, etc. On 404 returns empty messages and default pagination (no throw).</dd>
       </dl>
     </section>
 
@@ -145,7 +159,7 @@ interface SimplifiedMessage {
   messageType: string;
   textMessage?: string;
   mediaType?: string;
-  mediaUrl?: string;    // long-lived URL when from API
+  mediaUrl?: string;    // pre-signed URL (2h or 1h expiry depending on context)
   status?: string;
   socialMessageId?: string | null;
   metadata?: Record&lt;string, unknown&gt;;
@@ -190,10 +204,9 @@ interface ChannelInfoResponse {
     </section>
 
     <section id="auth" class="doc-section">
-      <h2>Authentication</h2>
-      <p>All requests use the channel <strong>secret</strong> in the <code>X-AWR-Channel-Secret</code> header. Get the
-        connection key and secret when creating a Custom Channel in the AWR Connect webapp; the secret is shown only
-        once and must be stored securely.</p>
+      <h2>Authentication &amp; security</h2>
+      <p>All requests use the channel <strong>secret</strong> in the <code>X-AWR-Channel-Secret</code> header (or <code>Authorization: Bearer &lt;secret&gt;</code>). Get the connection key and secret when creating the Custom Channel in the AWR Connect webapp; the secret is shown only once and must be stored securely.</p>
+      <p>Server-side: the API compares the secret using a <strong>timing-safe</strong> comparison to avoid leaking information. <strong>Media upload</strong> is rate-limited (e.g. 30 requests per minute per IP). Uploaded document filenames use an allowlisted extension from the validated MIME type, not the client filename.</p>
     </section>
 
     <section id="example" class="doc-section">
@@ -201,11 +214,10 @@ interface ChannelInfoResponse {
       <p>Enter your Custom Channel <strong>id</strong> (Channel ID) and <strong>secret</strong>, then click <strong>Open
           chat</strong> to use the SDK in a real-time chat.</p>
       <p>Use the form below to try the SDK (or the same REST calls if the SDK is not loaded). Fill in your API base URL,
-        channel ID (id), secret, and optionally session ID and visitor name.</p>
-      <p class="note">The SDK is loaded from <code>unpkg</code> (see script below); no local build required. Or build
-        the SDK in <code>awr-connect-client-js-sdk</code> and
-        serve this folder from a local server. Otherwise the example uses <code>fetch</code> to demonstrate the same
-        endpoints.
+        channel ID (id), secret, and optionally session ID and visitor name. In the chat you can send text, or use
+        <strong>Attach</strong> to upload an image, audio, or document (sent as a media message with a pre-signed URL).</p>
+      <p class="note">The SDK is loaded from <code>unpkg</code> (see script below); media upload and pre-signed URLs require
+        <code>awr-client-js-sdk@0.1.3</code> or later. This example reflects the current implementation: two-step media (upload then send), pre-signed media URLs in messages, rate-limited uploads, and timing-safe secret verification on the server.
       </p>
 
       <div class="example-panel">
@@ -261,6 +273,8 @@ interface ChannelInfoResponse {
           <div id="chat-error-banner" class="chat-error-banner" hidden></div>
           <div id="chat-messages" class="chat-messages"></div>
           <div class="chat-send-row">
+            <input id="chat-file-input" type="file" accept="image/*,audio/*,.pdf,.doc,.docx,.txt,.xlsx,.pptx" hidden />
+            <button type="button" id="btn-chat-attach" class="btn-chat-attach" title="Attach image, audio, or document">Attach</button>
             <input id="chat-input" type="text" placeholder="Type a message..." autocomplete="off" />
             <button type="button" id="btn-chat-send">Send</button>
           </div>
@@ -276,7 +290,7 @@ interface ChannelInfoResponse {
     </div>
   </footer>
 
-  <script src="https://unpkg.com/awr-client-js-sdk@0.1.2/dist/index.umd.js"></script>
+  <script src="https://unpkg.com/awr-client-js-sdk@0.1.3/dist/index.umd.js"></script>
   <script src="app.js"></script>
 </body>
 

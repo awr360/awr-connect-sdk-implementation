@@ -43,6 +43,8 @@
   const chatErrorBanner = document.getElementById("chat-error-banner");
   const chatMessages = document.getElementById("chat-messages");
   const chatInput = document.getElementById("chat-input");
+  const chatFileInput = document.getElementById("chat-file-input");
+  const btnChatAttach = document.getElementById("btn-chat-attach");
   const btnChatSend = document.getElementById("btn-chat-send");
   const btnLeaveChat = document.getElementById("btn-leave-chat");
 
@@ -96,7 +98,15 @@
     }
   }
 
-  /** Render a single SimplifiedMessage into a DOM element */
+  /** Infer SDK mediaType from file MIME type */
+  function mediaTypeFromFile(file) {
+    var type = (file.type || "").toLowerCase();
+    if (type.indexOf("image/") === 0) return "image";
+    if (type.indexOf("audio/") === 0) return "audio";
+    return "document";
+  }
+
+  /** Render a single SimplifiedMessage into a DOM element (text + optional media: image, audio, document) */
   function renderMessage(msg) {
     const div = document.createElement("div");
     div.className = "chat-msg chat-msg--" + (msg.senderType === "CONTACT" ? "contact" : "agent");
@@ -113,18 +123,43 @@
     if (msg.messageType === "media" && msg.mediaUrl) {
       const media = document.createElement("div");
       media.className = "chat-msg-media";
-      if (msg.mediaType) {
-        const label = document.createElement("span");
-        label.className = "chat-msg-media-type";
-        label.textContent = msg.mediaType + ": ";
-        media.appendChild(label);
+      var mt = (msg.mediaType || "").toLowerCase();
+      if (mt === "image") {
+        var img = document.createElement("img");
+        img.src = msg.mediaUrl;
+        img.alt = msg.textMessage || "Image";
+        img.className = "chat-msg-media-img";
+        img.loading = "lazy";
+        img.onerror = function () {
+          var fallback = document.createElement("a");
+          fallback.href = msg.mediaUrl;
+          fallback.target = "_blank";
+          fallback.rel = "noopener noreferrer";
+          fallback.textContent = "Open image";
+          media.appendChild(fallback);
+        };
+        media.appendChild(img);
+      } else if (mt === "audio") {
+        var audio = document.createElement("audio");
+        audio.controls = true;
+        audio.src = msg.mediaUrl;
+        audio.className = "chat-msg-media-audio";
+        media.appendChild(audio);
+      } else {
+        if (mt) {
+          var label = document.createElement("span");
+          label.className = "chat-msg-media-type";
+          label.textContent = mt + ": ";
+          media.appendChild(label);
+        }
+        var link = document.createElement("a");
+        link.href = msg.mediaUrl;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.download = "";
+        link.textContent = msg.textMessage || "Download";
+        media.appendChild(link);
       }
-      const link = document.createElement("a");
-      link.href = msg.mediaUrl;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.textContent = msg.mediaUrl;
-      media.appendChild(link);
       div.appendChild(media);
     }
     if (msg.createdAt) {
@@ -223,6 +258,47 @@
       }
     } catch (e) {
       showChatError("Send error: " + e.message);
+    }
+  }
+
+  async function onChatAttach(file) {
+    if (!file || !chatClient) return;
+    if (!chatClient.uploadMedia || !chatClient.sendMessage) {
+      showChatError("SDK uploadMedia/sendMessage not available. Load awr-client-js-sdk@0.1.3 or later (see index.html script src).");
+      return;
+    }
+    hideChatError();
+    var mediaType = mediaTypeFromFile(file);
+    var caption = (chatInput && chatInput.value && chatInput.value.trim()) || (file.name || "Attachment");
+    try {
+      var uploadRes = await chatClient.uploadMedia(file, {
+        sessionId: chatSessionId,
+        mediaType: mediaType,
+        visitorName: chatVisitorName,
+      });
+      var result = await chatClient.sendMessage(caption, {
+        sessionId: chatSessionId,
+        visitorName: chatVisitorName,
+        messageType: "media",
+        mediaUrl: uploadRes.mediaUrl,
+        mediaType: uploadRes.mediaType,
+      });
+      if (result.success) {
+        appendMessage({
+          _id: "local-" + Date.now(),
+          senderType: "CONTACT",
+          messageType: "media",
+          textMessage: caption,
+          mediaType: uploadRes.mediaType,
+          mediaUrl: uploadRes.mediaUrl,
+          createdAt: new Date().toISOString(),
+        });
+        if (chatInput) chatInput.value = "";
+      } else {
+        showChatError("Send media failed: " + (result.message || "unknown"));
+      }
+    } catch (e) {
+      showChatError("Upload/send error: " + e.message);
     }
   }
 
@@ -455,6 +531,18 @@
   if (btnOpenChat) btnOpenChat.addEventListener("click", openChat);
   if (btnLeaveChat) btnLeaveChat.addEventListener("click", leaveChat);
   if (btnChatSend) btnChatSend.addEventListener("click", onChatSend);
+  if (btnChatAttach && chatFileInput) {
+    btnChatAttach.addEventListener("click", function () {
+      chatFileInput.click();
+    });
+    chatFileInput.addEventListener("change", function () {
+      var file = chatFileInput.files && chatFileInput.files[0];
+      if (file) {
+        onChatAttach(file);
+        chatFileInput.value = "";
+      }
+    });
+  }
   if (chatInput) {
     chatInput.addEventListener("keydown", function (e) {
       if (e.key === "Enter") {
