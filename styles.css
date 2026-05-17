@@ -501,6 +501,29 @@ body {
   color: var(--text-muted);
 }
 
+.chat-msg-status {
+  display: inline-block;
+  margin-left: 0.35rem;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.chat-header .btn-secondary {
+  margin-right: 0.35rem;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.chat-header .btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .chat-send-row {
   display: flex;
   align-items: center;

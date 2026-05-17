@@ -200,7 +200,10 @@ interface ChannelInfoResponse {
         <li><code>connection_error</code> – emitted with an <code>Error</code> when connect or join fails (e.g. wrong secret, wrong channelId, sessionId contains <code>:</code>, or 10s timeout).</li>
         <li><code>error</code> – emitted with an <code>Error</code> on connection or request (send/getConversation) failures.</li>
         <li><code>message</code> – payload: <code>SimplifiedMessage</code>. Fired when an agent sends a message to this session (real-time). Check <code>messageType</code> ('text' or 'media') and <code>mediaType</code> / <code>mediaUrl</code> for media.</li>
+        <li><code>message_status</code> – payload: <code>{ socialMessageId, status }</code> where <code>status</code> is <code>sent</code>, <code>delivered</code>, or <code>read</code>. Fired when the agent reads your messages (read cursor on the server).</li>
+        <li><code>reconnecting</code> / <code>reconnected</code> – Socket.IO reconnect lifecycle.</li>
       </ul>
+      <p>Methods (0.2.0+): <code>sendMessageStatus()</code>, <code>markMessagesRead()</code>, <code>getMessageStatus()</code>, <code>loadAllConversationMessages()</code>.</p>
     </section>
 
     <section id="auth" class="doc-section">
@@ -217,7 +220,7 @@ interface ChannelInfoResponse {
         channel ID (id), secret, and optionally session ID and visitor name. In the chat you can send text, or use
         <strong>Attach</strong> to upload an image, audio, or document (sent as a media message with a pre-signed URL).</p>
       <p class="note">The SDK is loaded from <code>unpkg</code> (see script below); media upload and pre-signed URLs require
-        <code>awr-client-js-sdk@0.1.3</code> or later. This example reflects the current implementation: two-step media (upload then send), pre-signed media URLs in messages, rate-limited uploads, and timing-safe secret verification on the server.
+        <code>awr-client-js-sdk@0.2.0</code> or later. This example reflects the current implementation: two-step media (upload then send), pre-signed media URLs in messages, rate-limited uploads, and timing-safe secret verification on the server.
       </p>
 
       <div class="example-panel">
@@ -268,6 +271,8 @@ interface ChannelInfoResponse {
         <div id="chat-panel" class="chat-panel" hidden>
           <div class="chat-header">
             <span id="chat-header-info" class="chat-header-info">Session · Visitor</span>
+            <button type="button" id="btn-load-more" class="btn-secondary" title="Load older messages">Load older</button>
+            <button type="button" id="btn-mark-read" class="btn-secondary" title="Mark your last message read (demo)">Mark last read</button>
             <button type="button" id="btn-leave-chat" class="btn-leave-chat">Leave chat</button>
           </div>
           <div id="chat-error-banner" class="chat-error-banner" hidden></div>
@@ -290,7 +295,8 @@ interface ChannelInfoResponse {
     </div>
   </footer>
 
-  <script src="https://unpkg.com/awr-client-js-sdk@0.1.3/dist/index.umd.js"></script>
+  <!-- Use local build after `pnpm run build` in awr-connect-client-js-sdk, or unpkg when 0.2.0 is published -->
+  <script src="../awr-connect-client-js-sdk/dist/index.umd.js"></script>
   <script src="app.js"></script>
 </body>
 

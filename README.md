@@ -127,7 +127,7 @@ All of these require being “connected” first (Connect clicked). The implemen
 
 ## SDK loading
 
-- **Default:** The page loads the SDK from **unpkg**: `awr-client-js-sdk@0.1.2` (see the `<script>` tag in `index.html`). No local build required.
+- **Default:** The page loads the SDK from the sibling package build (`../awr-connect-client-js-sdk/dist/index.umd.js`). Run `pnpm run build` in that repo first, or switch the script tag to `unpkg` `awr-client-js-sdk@0.2.0` when published.
 - **Local build:** To test a local SDK build, replace the unpkg script with your bundle, e.g.:
   ```html
   <script src="../awr-connect-custom-channel-js-sdk/dist/index.umd.js"></script>

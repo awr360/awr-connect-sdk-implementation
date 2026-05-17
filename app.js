@@ -47,6 +47,8 @@
   const btnChatAttach = document.getElementById("btn-chat-attach");
   const btnChatSend = document.getElementById("btn-chat-send");
   const btnLeaveChat = document.getElementById("btn-leave-chat");
+  const btnLoadMore = document.getElementById("btn-load-more");
+  const btnMarkRead = document.getElementById("btn-mark-read");
 
   let client = null;
   let useSdk = false;
@@ -55,6 +57,40 @@
   let chatSessionId = "";
   let chatVisitorName = "";
   let chatMessageHandler = null;
+  let chatStatusHandler = null;
+  let chatPagination = null;
+  /** socialMessageId -> DOM element for visitor messages (read receipts) */
+  const visitorMessageEls = new Map();
+  let lastVisitorSocialMessageId = null;
+
+  function generateSocialMessageId() {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+    return "msg-" + Date.now() + "-" + Math.random().toString(36).slice(2, 9);
+  }
+
+  function statusTickLabel(status) {
+    var s = (status || "").toLowerCase();
+    if (s === "read") return "✓✓";
+    if (s === "delivered") return "✓✓";
+    if (s === "sent") return "✓";
+    return "";
+  }
+
+  function applyMessageStatus(socialMessageId, status) {
+    if (!socialMessageId) return;
+    var el = visitorMessageEls.get(socialMessageId);
+    if (!el) return;
+    var tick = el.querySelector(".chat-msg-status");
+    if (!tick) {
+      tick = document.createElement("span");
+      tick.className = "chat-msg-status";
+      el.appendChild(tick);
+    }
+    tick.textContent = statusTickLabel(status);
+    tick.setAttribute("data-status", status || "");
+  }
 
   function ensureSlash(url) {
     return url.endsWith("/") ? url.slice(0, -1) : url;
@@ -110,6 +146,9 @@
   function renderMessage(msg) {
     const div = document.createElement("div");
     div.className = "chat-msg chat-msg--" + (msg.senderType === "CONTACT" ? "contact" : "agent");
+    if (msg.socialMessageId) {
+      div.setAttribute("data-social-message-id", msg.socialMessageId);
+    }
     const sender = document.createElement("span");
     sender.className = "chat-msg-sender";
     sender.textContent = msg.senderType === "CONTACT" ? "You" : "Agent";
@@ -168,12 +207,32 @@
       time.textContent = new Date(msg.createdAt).toLocaleTimeString();
       div.appendChild(time);
     }
+    if (msg.senderType === "CONTACT" && msg.socialMessageId) {
+      const tick = document.createElement("span");
+      tick.className = "chat-msg-status";
+      tick.textContent = statusTickLabel(msg.status || "sent");
+      div.appendChild(tick);
+    }
     return div;
   }
 
-  function appendMessage(msg) {
-    if (chatMessages) chatMessages.appendChild(renderMessage(msg));
-    if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
+  function appendMessage(msg, options) {
+    options = options || {};
+    const el = renderMessage(msg);
+    if (msg.senderType === "CONTACT" && msg.socialMessageId) {
+      visitorMessageEls.set(msg.socialMessageId, el);
+      lastVisitorSocialMessageId = msg.socialMessageId;
+    }
+    if (chatMessages) {
+      if (options.prepend) {
+        chatMessages.insertBefore(el, chatMessages.firstChild);
+      } else {
+        chatMessages.appendChild(el);
+      }
+      if (!options.prepend) {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+    }
   }
 
   async function openChat() {
@@ -202,7 +261,14 @@
         if (chatHeaderInfo) chatHeaderInfo.textContent = chatSessionId + " · " + chatVisitorName;
         chatClient.getConversation(chatSessionId, { page: 1, limit: 50 }).then(function (res) {
           if (chatMessages) chatMessages.innerHTML = "";
-          (res.messages || []).forEach(appendMessage);
+          visitorMessageEls.clear();
+          chatPagination = res.pagination || null;
+          (res.messages || []).forEach(function (m) {
+            appendMessage(m);
+          });
+          if (btnLoadMore) {
+            btnLoadMore.disabled = !(chatPagination && chatPagination.hasNextPage);
+          }
           if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
         }).catch(function (err) {
           showChatError("Could not load conversation: " + err.message);
@@ -210,7 +276,18 @@
         chatMessageHandler = function (msg) {
           appendMessage(msg);
         };
+        chatStatusHandler = function (payload) {
+          applyMessageStatus(payload.socialMessageId, payload.status);
+          log("message_status: " + payload.socialMessageId + " -> " + payload.status);
+        };
         chatClient.on("message", chatMessageHandler);
+        chatClient.on("message_status", chatStatusHandler);
+        chatClient.on("reconnecting", function () {
+          log("Socket reconnecting…");
+        });
+        chatClient.on("reconnected", function () {
+          log("Socket reconnected and re-joined session room.");
+        });
       });
       chatClient.on("connection_error", function (err) {
         showChatError("Connection error: " + err.message + ". Check Base URL and that the API allows your origin (ORIGIN_URL).");
@@ -241,15 +318,23 @@
       return;
     }
     hideChatError();
-    const opts = { sessionId: chatSessionId, visitorName: chatVisitorName };
+    const socialMessageId = generateSocialMessageId();
+    const opts = {
+      sessionId: chatSessionId,
+      visitorName: chatVisitorName,
+      socialMessageId: socialMessageId,
+    };
     try {
       const result = await chatClient.sendMessage(text, opts);
       if (result.success) {
+        log("Sent message socialMessageId=" + (result.socialMessageId || socialMessageId));
         appendMessage({
           _id: "local-" + Date.now(),
           senderType: "CONTACT",
           messageType: "TEXT",
           textMessage: text,
+          socialMessageId: result.socialMessageId || socialMessageId,
+          status: "sent",
           createdAt: new Date().toISOString(),
         });
         if (chatInput) chatInput.value = "";
@@ -276,12 +361,14 @@
         mediaType: mediaType,
         visitorName: chatVisitorName,
       });
+      var mediaSocialId = generateSocialMessageId();
       var result = await chatClient.sendMessage(caption, {
         sessionId: chatSessionId,
         visitorName: chatVisitorName,
         messageType: "media",
         mediaUrl: uploadRes.mediaUrl,
         mediaType: uploadRes.mediaType,
+        socialMessageId: mediaSocialId,
       });
       if (result.success) {
         appendMessage({
@@ -291,6 +378,8 @@
           textMessage: caption,
           mediaType: uploadRes.mediaType,
           mediaUrl: uploadRes.mediaUrl,
+          socialMessageId: result.socialMessageId || mediaSocialId,
+          status: "sent",
           createdAt: new Date().toISOString(),
         });
         if (chatInput) chatInput.value = "";
@@ -302,15 +391,56 @@
     }
   }
 
+  async function loadOlderMessages() {
+    if (!chatClient || !chatPagination || !chatPagination.hasNextPage) return;
+    var nextPage = chatPagination.nextPage || (chatPagination.currentPage + 1);
+    try {
+      var res = await chatClient.getConversation(chatSessionId, { page: nextPage, limit: chatPagination.limit || 50 });
+      chatPagination = res.pagination || chatPagination;
+      (res.messages || []).forEach(function (m) {
+        appendMessage(m, { prepend: true });
+      });
+      if (btnLoadMore) btnLoadMore.disabled = !(chatPagination && chatPagination.hasNextPage);
+      log("Loaded page " + nextPage + " (" + (res.messages || []).length + " messages).");
+    } catch (e) {
+      showChatError("Load older failed: " + e.message);
+    }
+  }
+
+  async function markLastMessageRead() {
+    if (!chatClient || !lastVisitorSocialMessageId || !chatClient.markMessagesRead) {
+      showChatError("No visitor message to mark read, or SDK 0.2.0+ required.");
+      return;
+    }
+    try {
+      var res = await chatClient.markMessagesRead(chatSessionId, [lastVisitorSocialMessageId], chatVisitorName);
+      if (res.success) {
+        applyMessageStatus(lastVisitorSocialMessageId, "read");
+        log("Marked read: " + lastVisitorSocialMessageId);
+      } else {
+        showChatError("Mark read failed for: " + (res.failed || []).join(", "));
+      }
+    } catch (e) {
+      showChatError("Mark read error: " + e.message);
+    }
+  }
+
   function leaveChat() {
     if (chatMessageHandler && chatClient && chatClient.off) {
       chatClient.off("message", chatMessageHandler);
+    }
+    if (chatStatusHandler && chatClient && chatClient.off) {
+      chatClient.off("message_status", chatStatusHandler);
     }
     if (chatClient && chatClient.disconnect) {
       chatClient.disconnect();
     }
     chatClient = null;
     chatMessageHandler = null;
+    chatStatusHandler = null;
+    chatPagination = null;
+    visitorMessageEls.clear();
+    lastVisitorSocialMessageId = null;
     if (credentialsWrap) credentialsWrap.hidden = false;
     if (chatPanel) chatPanel.hidden = true;
     hideChatError();
@@ -529,6 +659,8 @@
   if (btnDisconnect) btnDisconnect.addEventListener("click", onDisconnect);
   if (btnClearLog) btnClearLog.addEventListener("click", clearLog);
   if (btnOpenChat) btnOpenChat.addEventListener("click", openChat);
+  if (btnLoadMore) btnLoadMore.addEventListener("click", loadOlderMessages);
+  if (btnMarkRead) btnMarkRead.addEventListener("click", markLastMessageRead);
   if (btnLeaveChat) btnLeaveChat.addEventListener("click", leaveChat);
   if (btnChatSend) btnChatSend.addEventListener("click", onChatSend);
   if (btnChatAttach && chatFileInput) {
