@@ -264,7 +264,7 @@
   async function onChatAttach(file) {
     if (!file || !chatClient) return;
     if (!chatClient.uploadMedia || !chatClient.sendMessage) {
-      showChatError("SDK uploadMedia/sendMessage not available. Load awr-client-js-sdk@0.1.3 or later (see index.html script src).");
+      showChatError("SDK uploadMedia/sendMessage not available. Load awr-client-js-sdk@0.2.0 or later (see index.html script src).");
       return;
     }
     hideChatError();

@@ -33,8 +33,8 @@ You need a running **AWR Connect API** and a **Custom Channel** (connection key 
 
 - **In-page documentation** (`index.html`): overview, installation, quick start, full API reference, types, events, authentication.
 - **Credentials form:** Base URL, Channel ID, Secret, optional Session ID and Visitor name.
-- **Open chat:** Click **Open chat** to start a real-time chat: history is loaded, then new agent messages arrive via Socket.IO. You can send messages; each send includes `sessionId` and `visitorName` as required by the SDK.
-- **API buttons:** **Connect**, **Send message**, **Get channel info**, **Get conversation**, **Disconnect** – each runs the corresponding SDK (or fetch) operation and logs the result. Useful to test one operation at a time.
+- **Open chat:** Click **Open chat** to start a real-time chat: history is loaded, then new agent messages arrive via Socket.IO. You can send text or **Attach** media (`uploadMedia` then `sendMessage`). Each send includes `sessionId` and `visitorName`.
+- **API buttons:** **Connect**, **Send message**, **Get channel info**, **Get conversation**, **Disconnect** – each runs the corresponding SDK (or fetch) operation and logs the result.
 - **Log:** All operations and errors are printed in the Log area. Use **Clear log** to reset.
 
 ---
@@ -127,7 +127,7 @@ All of these require being “connected” first (Connect clicked). The implemen
 
 ## SDK loading
 
-- **Default:** The page loads the SDK from **unpkg**: `awr-client-js-sdk@0.1.2` (see the `<script>` tag in `index.html`). No local build required.
+- **Default:** The page loads the SDK from **unpkg**: `awr-client-js-sdk@0.2.0` (see the `<script>` tag in `index.html`). No local build required.
 - **Local build:** To test a local SDK build, replace the unpkg script with your bundle, e.g.:
   ```html
   <script src="../awr-connect-custom-channel-js-sdk/dist/index.umd.js"></script>
@@ -160,4 +160,4 @@ All of these require being “connected” first (Connect clicked). The implemen
 | Agent reply not showing in chat | Same Session ID as in the open chat; agent replying to that conversation in the inbox; `connection_ready` fired (check Log or error banner). |
 | Get conversation returns empty | Use the same Session ID you used when sending; ensure you clicked Connect before Get conversation. |
 
-For more SDK-level troubleshooting (e.g. `sessionId` colon, mediaUrl required, join timeout), see the **awr-client-js-sdk** [README](https://github.com/awr-connect/awr-connect-client-js-sdk) and [TESTING.md](https://github.com/awr-connect/awr-connect-client-js-sdk/blob/main/TESTING.md).
+For more SDK-level troubleshooting (e.g. `sessionId` colon, mediaUrl required, join timeout, status events), see the **awr-client-js-sdk** [README](https://github.com/awr360/awr-connect-custom-channel-js-sdk) and [TESTING.md](https://github.com/awr360/awr-connect-custom-channel-js-sdk/blob/main/TESTING.md).
