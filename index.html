@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AWR Connect SDK – Documentation &amp; Implementation</title>
+  <title>AWR Connect SDK â€“ Documentation &amp; Implementation</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 
@@ -12,7 +12,7 @@
   <header class="site-header">
     <div class="container">
       <h1 class="logo">AWR Connect SDK</h1>
-      <p class="tagline">Custom Channel client – documentation and example implementation</p>
+      <p class="tagline">Custom Channel client â€“ documentation and example implementation</p>
     </div>
   </header>
 
@@ -35,7 +35,7 @@
       <h2>Overview</h2>
       <p>
         The <strong>AWR Connect Client JS SDK</strong> (<code>awr-client-js-sdk</code>) lets you connect your own UI to
-        the AWR Connect chat platform via a <strong>Custom Channel</strong>. You use the channel’s connection key
+        the AWR Connect chat platform via a <strong>Custom Channel</strong>. You use the channelâ€™s connection key
         (<code>channelId</code>) and secret to send messages over REST and receive agent replies in real time over Socket.IO.
       </p>
       <ul>
@@ -43,7 +43,7 @@
         <li><strong>REST:</strong> <code>sendMessage()</code>, <code>sendMessageStatus()</code>, and <code>getConversation(sessionId, options)</code>; call <code>connect()</code> first.</li>
         <li><strong>Media:</strong> Use <code>uploadMedia(file, { sessionId, mediaType })</code> (S3 upload-intents), then <code>sendMessage(caption, { sessionId, messageType: 'media', mediaUrl, mediaType })</code>. History/socket payloads may include time-limited <code>mediaUrl</code> / <code>thumbnail</code>.</li>
         <li>Use a stable <code>sessionId</code> per visitor (must not contain <code>:</code>). <code>options.sessionId</code> is required on every <code>sendMessage()</code>, <code>uploadMedia()</code>, and <code>sendMessageStatus()</code>.</li>
-        <li>Requires <code>awr-client-js-sdk@0.2.0</code> or later. Obtain the connection key and secret when creating the Custom Channel in the webapp; the secret is shown only once.</li>
+        <li>Requires <code>awr-client-js-sdk@0.3.0</code> or later. Obtain the connection key and secret when creating the Custom Channel in the webapp; the secret is shown only once.</li>
       </ul>
     </section>
 
@@ -55,7 +55,7 @@
         <code>awr-connect-custom-channel-js-sdk</code>:
       </p>
       <pre
-        class="code-block"><code>&lt;script src="https://unpkg.com/awr-client-js-sdk@0.2.0/dist/index.umd.js"&gt;&lt;/script&gt;</code></pre>
+        class="code-block"><code>&lt;script src="https://unpkg.com/awr-client-js-sdk@0.3.0/dist/index.umd.js"&gt;&lt;/script&gt;</code></pre>
     </section>
 
     <section id="quick-start" class="doc-section">
@@ -95,7 +95,7 @@ client.disconnect();</code></pre>
       <p><strong>Upload flow:</strong> Call <code>uploadMedia(file, { sessionId, mediaType, onProgress? })</code> after <code>connect()</code> / <code>connection_ready</code>. The SDK creates an upload intent, PUTs to S3 (single or multipart), then completes/polls until ready. Returns <code>{ mediaUrl, mediaType, thumbnail? }</code>. Then send: <code>sendMessage(caption, { sessionId, messageType: 'media', mediaUrl, mediaType })</code>. Upload <code>mediaType</code>: <code>'image'</code>, <code>'audio'</code>, <code>'document'</code>.</p>
       <p><strong>Size limits:</strong> Image 10 MB, audio 16 MB, document 25 MB. Allowed types: common image/audio MIME types and PDF, DOC/DOCX, PPT/PPTX, XLS/XLSX, TXT.</p>
       <p><strong>URLs:</strong> <code>getConversation()</code> and socket events may return time-limited (pre-signed) <code>mediaUrl</code> / <code>thumbnail</code> values usable in the browser. Prefer helpers <code>getMessageDisplayUrl</code> / <code>getMessageFullUrl</code>. Listen for <code>message_media_ready</code> when finalize is deferred.</p>
-      <p><strong>Link lifetime:</strong> Treat media URLs as expiring (typically on the order of 1–2 hours depending on path). Refresh from history or wait for <code>message_media_ready</code> if a link stops working.</p>
+      <p><strong>Link lifetime:</strong> Treat media URLs as expiring (typically on the order of 1â€“2 hours depending on path). Refresh from history or wait for <code>message_media_ready</code> if a link stops working.</p>
       <p><strong>Display:</strong> This example renders images inline (<code>&lt;img&gt;</code>), audio with <code>&lt;audio controls&gt;</code>, and documents as download links. Use <code>messageType</code> and <code>mediaType</code> to choose the right UI.</p>
     </section>
 
@@ -121,7 +121,7 @@ client.disconnect();</code></pre>
         <dd>When <code>sessionId</code> is set, <code>true</code> only after <code>custom:join</code> succeeds. <code>sendMessage</code>, <code>uploadMedia</code>, and <code>sendMessageStatus</code> wait for this automatically.</dd>
 
         <dt><code>uploadMedia(file: File | Blob, options: UploadMediaOptions): Promise&lt;UploadMediaResponse&gt;</code></dt>
-        <dd>Upload via S3 upload-intents (create → PUT → complete/poll). Options: <code>sessionId</code>, <code>mediaType</code> ('image' | 'audio' | 'document'), <code>visitorName?</code>, <code>requestId?</code>, <code>onProgress?(percent)</code>. Returns <code>{ mediaUrl, mediaType, thumbnail?, metadata? }</code>. Then call <code>sendMessage(caption, { sessionId, messageType: 'media', mediaUrl, mediaType })</code>. Lower-level: <code>createUploadIntent</code>, <code>uploadToS3</code>, <code>completeUploadIntent</code>.</dd>
+        <dd>Upload via S3 upload-intents (create â†’ PUT â†’ complete/poll). Options: <code>sessionId</code>, <code>mediaType</code> ('image' | 'audio' | 'document'), <code>visitorName?</code>, <code>requestId?</code>, <code>onProgress?(percent)</code>. Returns <code>{ mediaUrl, mediaType, thumbnail?, metadata? }</code>. Then call <code>sendMessage(caption, { sessionId, messageType: 'media', mediaUrl, mediaType })</code>. Lower-level: <code>createUploadIntent</code>, <code>uploadToS3</code>, <code>completeUploadIntent</code>.</dd>
 
         <dt><code>sendMessage(textOrContent: string, options: SendMessageOptions): Promise&lt;{ success: boolean; message?: string; socialMessageId: string }&gt;</code></dt>
         <dd>Send a text or media message. <strong><code>options.sessionId</code> is required</strong> (must not contain <code>:</code>). Options: <code>visitorName?</code>, <code>messageType?</code> ('TEXT' | 'media'), <code>mediaUrl?</code> (required when messageType is 'media'), <code>mediaType?</code> ('audio' | 'image' | 'video' | 'document'), <code>socialMessageId?</code> (auto-generated when omitted). Always returns <code>socialMessageId</code>. Emits <code>error</code> on API failure.</dd>
@@ -142,7 +142,7 @@ client.disconnect();</code></pre>
         <dd>GET paginated messages. <strong>Call <code>connect()</code> first.</strong> Options: <code>page?</code> (default 1), <code>limit?</code> (default 20, max 100). On 404 returns empty messages (no throw).</dd>
 
         <dt><code>loadAllConversationMessages(sessionId: string, options?: { limit?: number; maxPages?: number }): Promise&lt;SimplifiedMessage[]&gt;</code></dt>
-        <dd>Fetches all pages (up to <code>maxPages</code>, default 100) and returns messages sorted oldest → newest.</dd>
+        <dd>Fetches all pages (up to <code>maxPages</code>, default 100) and returns messages sorted oldest â†’ newest.</dd>
       </dl>
     </section>
 
@@ -249,13 +249,13 @@ interface ChannelInfoResponse {
       <h2>Events</h2>
       <p>The client extends EventEmitter. Subscribe with <code>client.on(eventName, handler)</code>. Attach listeners <strong>before</strong> calling <code>connect()</code>.</p>
       <ul>
-        <li><code>connection_ready</code> – first successful Socket.IO join (or REST-only ready). <strong>No payload.</strong></li>
-        <li><code>connection_error</code> – connect or join failed (<code>Error</code>).</li>
-        <li><code>reconnecting</code> / <code>reconnected</code> – transport reconnect and room re-join (no payload).</li>
-        <li><code>error</code> – connection or request failures (<code>Error</code>).</li>
-        <li><code>message</code> – <code>SimplifiedMessage</code> when an agent/content message arrives for this session.</li>
-        <li><code>message_media_ready</code> – <code>SimplifiedMessage</code> when background media finalize completes; patch the bubble.</li>
-        <li><code>message_status</code> – <code>MessageStatusPayload</code> for delivery/read ticks on messages you sent.</li>
+        <li><code>connection_ready</code> â€“ first successful Socket.IO join (or REST-only ready). <strong>No payload.</strong></li>
+        <li><code>connection_error</code> â€“ connect or join failed (<code>Error</code>).</li>
+        <li><code>reconnecting</code> / <code>reconnected</code> â€“ transport reconnect and room re-join (no payload).</li>
+        <li><code>error</code> â€“ connection or request failures (<code>Error</code>).</li>
+        <li><code>message</code> â€“ <code>SimplifiedMessage</code> when an agent/content message arrives for this session.</li>
+        <li><code>message_media_ready</code> â€“ <code>SimplifiedMessage</code> when background media finalize completes; patch the bubble.</li>
+        <li><code>message_status</code> â€“ <code>MessageStatusPayload</code> for delivery/read ticks on messages you sent.</li>
       </ul>
     </section>
 
@@ -273,7 +273,7 @@ interface ChannelInfoResponse {
         channel ID (id), secret, and optionally session ID and visitor name. In the chat you can send text, or use
         <strong>Attach</strong> to upload an image, audio, or document via S3 upload-intents, then send as a media message.</p>
       <p class="note">The SDK is loaded from <code>unpkg</code> (see script below). Requires
-        <code>awr-client-js-sdk@0.2.0</code> or later for S3 upload-intents, <code>message_status</code>,
+        <code>awr-client-js-sdk@0.3.0</code> or later for S3 upload-intents, <code>message_status</code>,
         <code>message_media_ready</code>, and reconnect events.
       </p>
 
@@ -324,7 +324,7 @@ interface ChannelInfoResponse {
         <!-- Chat panel: shown when in chat -->
         <div id="chat-panel" class="chat-panel" hidden>
           <div class="chat-header">
-            <span id="chat-header-info" class="chat-header-info">Session · Visitor</span>
+            <span id="chat-header-info" class="chat-header-info">Session Â· Visitor</span>
             <button type="button" id="btn-leave-chat" class="btn-leave-chat">Leave chat</button>
           </div>
           <div id="chat-error-banner" class="chat-error-banner" hidden></div>
@@ -347,7 +347,7 @@ interface ChannelInfoResponse {
     </div>
   </footer>
 
-  <script src="https://unpkg.com/awr-client-js-sdk@0.2.0/dist/index.umd.js"></script>
+  <script src="https://unpkg.com/awr-client-js-sdk@0.3.0/dist/index.umd.js"></script>
   <script src="app.js"></script>
 </body>
 

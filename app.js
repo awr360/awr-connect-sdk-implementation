@@ -1,5 +1,5 @@
-/**
- * AWR Connect SDK – Example implementation (browser).
+﻿/**
+ * AWR Connect SDK â€“ Example implementation (browser).
  * Uses AwrConnectClient from the SDK when available (e.g. from UMD bundle),
  * otherwise falls back to fetch() to demonstrate the same REST calls.
  */
@@ -199,7 +199,7 @@
       });
       chatClient.on("connection_ready", function onReady() {
         hideChatError();
-        if (chatHeaderInfo) chatHeaderInfo.textContent = chatSessionId + " · " + chatVisitorName;
+        if (chatHeaderInfo) chatHeaderInfo.textContent = chatSessionId + " Â· " + chatVisitorName;
         chatClient.getConversation(chatSessionId, { page: 1, limit: 50 }).then(function (res) {
           if (chatMessages) chatMessages.innerHTML = "";
           (res.messages || []).forEach(appendMessage);
@@ -264,7 +264,7 @@
   async function onChatAttach(file) {
     if (!file || !chatClient) return;
     if (!chatClient.uploadMedia || !chatClient.sendMessage) {
-      showChatError("SDK uploadMedia/sendMessage not available. Load awr-client-js-sdk@0.2.0 or later (see index.html script src).");
+      showChatError("SDK uploadMedia/sendMessage not available. Load awr-client-js-sdk@0.3.0 or later (see index.html script src).");
       return;
     }
     hideChatError();

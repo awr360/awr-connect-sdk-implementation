@@ -1,4 +1,4 @@
-# AWR Connect SDK – Documentation & Example Implementation
+﻿# AWR Connect SDK â€“ Documentation & Example Implementation
 
 Static site that documents the **AWR Connect Client JS SDK** (`awr-client-js-sdk`) and provides a **live, runnable example** so you can see how the SDK works in a real chat UI. This README is a granular guide to using and understanding the implementation.
 
@@ -34,7 +34,7 @@ You need a running **AWR Connect API** and a **Custom Channel** (connection key 
 - **In-page documentation** (`index.html`): overview, installation, quick start, full API reference, types, events, authentication.
 - **Credentials form:** Base URL, Channel ID, Secret, optional Session ID and Visitor name.
 - **Open chat:** Click **Open chat** to start a real-time chat: history is loaded, then new agent messages arrive via Socket.IO. You can send text or **Attach** media (`uploadMedia` then `sendMessage`). Each send includes `sessionId` and `visitorName`.
-- **API buttons:** **Connect**, **Send message**, **Get channel info**, **Get conversation**, **Disconnect** – each runs the corresponding SDK (or fetch) operation and logs the result.
+- **API buttons:** **Connect**, **Send message**, **Get channel info**, **Get conversation**, **Disconnect** â€“ each runs the corresponding SDK (or fetch) operation and logs the result.
 - **Log:** All operations and errors are printed in the Log area. Use **Clear log** to reset.
 
 ---
@@ -43,7 +43,7 @@ You need a running **AWR Connect API** and a **Custom Channel** (connection key 
 
 1. **AWR Connect API** running (e.g. `http://localhost:8081` or your deployed base URL). The page will send requests to this origin; CORS must allow your page origin.
 2. **A Custom Channel** created in the AWR Connect webapp:
-   - Channels → Add Channel → Add Custom Channel.
+   - Channels â†’ Add Channel â†’ Add Custom Channel.
    - Create the channel and copy the **connection key** (Channel ID) and **secret** (shown once).
 3. **Browser or static server:** Open `index.html` via `file://` or serve the folder (e.g. `npx serve .`, `python3 -m http.server 3000`). For loading the SDK from unpkg, a static server is recommended.
 
@@ -83,9 +83,9 @@ You need a running **AWR Connect API** and a **Custom Channel** (connection key 
 | **Secret** | Channel secret (sent as `X-AWR-Channel-Secret`). |
 | **Session ID** | Optional; used for chat session and for send/getConversation. |
 | **Visitor name** | Optional; displayed and sent in message metadata. |
-| **Open chat** | Starts real-time chat: connect → load history → listen for `message`. |
+| **Open chat** | Starts real-time chat: connect â†’ load history â†’ listen for `message`. |
 | **Connect** | Connects the client (SDK or mock). Enables Send, Get channel, Get conversation, Disconnect. |
-| **Send message** | Sends the text in “Message text” with current sessionId/visitorName. |
+| **Send message** | Sends the text in â€œMessage textâ€ with current sessionId/visitorName. |
 | **Get channel info** | Calls `getChannelInfo()` and logs the result. |
 | **Get conversation** | Calls `getConversation(sessionId, { page: 1, limit: 20 })` and logs messages and pagination. |
 | **Disconnect** | Disconnects the client and clears connected state. |
@@ -100,12 +100,12 @@ You need a running **AWR Connect API** and a **Custom Channel** (connection key 
 2. User clicks **Open chat**.
 3. App creates `AwrConnectClient({ baseUrl, channelId, secret, sessionId, visitorName })`.
 4. App attaches:
-   - `connection_ready` → hide error banner, set header text, call `getConversation(sessionId, { page: 1, limit: 50 })`, render `res.messages`, then attach `message` handler to append new messages.
-   - `connection_error` → show error banner.
-   - `error` → show error banner.
+   - `connection_ready` â†’ hide error banner, set header text, call `getConversation(sessionId, { page: 1, limit: 50 })`, render `res.messages`, then attach `message` handler to append new messages.
+   - `connection_error` â†’ show error banner.
+   - `error` â†’ show error banner.
 5. App calls `client.connect()`. Credentials form is hidden, chat panel is shown.
 6. When the server acknowledges the join, `connection_ready` runs; history is fetched and rendered; the `message` listener is active.
-7. User types and clicks **Send**. App calls `client.sendMessage(text, { sessionId: chatSessionId, visitorName: chatVisitorName })`. On success, a local “contact” bubble is appended and the input is cleared.
+7. User types and clicks **Send**. App calls `client.sendMessage(text, { sessionId: chatSessionId, visitorName: chatVisitorName })`. On success, a local â€œcontactâ€ bubble is appended and the input is cleared.
 8. When an agent replies in the AWR Connect inbox, the API emits to the session room; the SDK receives it and emits `message`; the handler appends the agent message to the list.
 9. User clicks **Leave chat**. App removes the `message` listener, calls `client.disconnect()`, and shows the credentials form again.
 
@@ -115,19 +115,19 @@ Important details that match the SDK docs: **sessionId** is required in every `s
 
 ## API buttons (Connect, Send, Get channel, Get conversation, Disconnect)
 
-- **Connect:** Builds config from the form (baseUrl, channelId, secret; sessionId/visitorName only used for Send and Get conversation). If the SDK is loaded, creates `AwrConnectClient`, attaches `connection_ready` / `connection_error` / `error`, calls `connect()`. If the SDK is not loaded, sets a mock “connected” state. Enables the other buttons.
-- **Send message:** Reads “Message text” and sessionId/visitorName from the form. If using the SDK, calls `client.sendMessage(text, { sessionId, visitorName })`; otherwise uses the built-in `fetchSendMessage()` that POSTs the same `message` shape to `/webhook/custom`. Logs success or failure.
+- **Connect:** Builds config from the form (baseUrl, channelId, secret; sessionId/visitorName only used for Send and Get conversation). If the SDK is loaded, creates `AwrConnectClient`, attaches `connection_ready` / `connection_error` / `error`, calls `connect()`. If the SDK is not loaded, sets a mock â€œconnectedâ€ state. Enables the other buttons.
+- **Send message:** Reads â€œMessage textâ€ and sessionId/visitorName from the form. If using the SDK, calls `client.sendMessage(text, { sessionId, visitorName })`; otherwise uses the built-in `fetchSendMessage()` that POSTs the same `message` shape to `/webhook/custom`. Logs success or failure.
 - **Get channel info:** Calls `client.getChannelInfo()` (or fetch to `GET /webhook/custom/channels/:channelId`) and logs the response.
 - **Get conversation:** Calls `client.getConversation(sessionId, { page: 1, limit: 20 })` (or fetch to `GET /webhook/custom/channels/:channelId/contact/:sessionId?page=1&limit=20`) and logs `messages` and `pagination`.
 - **Disconnect:** If using the SDK, calls `client.disconnect()`. Clears the client reference and disables the other buttons.
 
-All of these require being “connected” first (Connect clicked). The implementation uses the same config field names as the SDK: `baseUrl`, `channelId`, `secret`, `sessionId`, `visitorName`.
+All of these require being â€œconnectedâ€ first (Connect clicked). The implementation uses the same config field names as the SDK: `baseUrl`, `channelId`, `secret`, `sessionId`, `visitorName`.
 
 ---
 
 ## SDK loading
 
-- **Default:** The page loads the SDK from **unpkg**: `awr-client-js-sdk@0.2.0` (see the `<script>` tag in `index.html`). No local build required.
+- **Default:** The page loads the SDK from **unpkg**: `awr-client-js-sdk@0.3.0` (see the `<script>` tag in `index.html`). No local build required.
 - **Local build:** To test a local SDK build, replace the unpkg script with your bundle, e.g.:
   ```html
   <script src="../awr-connect-custom-channel-js-sdk/dist/index.umd.js"></script>
@@ -152,9 +152,9 @@ All of these require being “connected” first (Connect clicked). The implemen
 
 | Issue | What to check |
 | ----- | -------------- |
-| “Open chat failed: baseUrl, channelId, and secret are required” | Fill Base URL, Channel ID, and Secret. |
-| “SDK not loaded” | Ensure the unpkg script loads (network tab). If using a local bundle, path and server must allow the script to run. |
-| “Connection error” / “Custom channel not found” | Wrong Base URL, wrong Channel ID (use connection key), or channel not created. Check API and CORS. |
+| â€œOpen chat failed: baseUrl, channelId, and secret are requiredâ€ | Fill Base URL, Channel ID, and Secret. |
+| â€œSDK not loadedâ€ | Ensure the unpkg script loads (network tab). If using a local bundle, path and server must allow the script to run. |
+| â€œConnection errorâ€ / â€œCustom channel not foundâ€ | Wrong Base URL, wrong Channel ID (use connection key), or channel not created. Check API and CORS. |
 | 401 Unauthorized | Wrong Secret. |
 | CORS errors | Configure the AWR Connect API to allow your page origin (e.g. `http://localhost:3000`). |
 | Agent reply not showing in chat | Same Session ID as in the open chat; agent replying to that conversation in the inbox; `connection_ready` fired (check Log or error banner). |
