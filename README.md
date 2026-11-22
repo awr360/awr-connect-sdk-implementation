@@ -1,142 +1,123 @@
-﻿# AWR Connect SDK â€“ Documentation & Example Implementation
+﻿# Adventist Inbox SDK – Documentation & Example Implementation
 
-Static site that documents the **AWR Connect Client JS SDK** (`adventist-inbox-sdk`) and provides a **live, runnable example** so you can see how the SDK works in a real chat UI. This README is a granular guide to using and understanding the implementation.
+A static site that documents the **Adventist Inbox SDK** (`adventist-inbox-sdk`, source in `awr-connect-custom-channel-js-sdk`) and runs a **live example** of a Custom Channel chat built on it. The page targets **`adventist-inbox-sdk@0.6.0`**.
+
+> **Local testing only.** The demo asks for the channel secret in the browser. In production, keep the secret on your backend: anyone who has it can read and write every session on the channel.
 
 ---
 
 ## Table of contents
 
-- [Who this is for](#who-this-is-for)
 - [What you get](#what-you-get)
 - [Prerequisites](#prerequisites)
 - [How to run](#how-to-run)
 - [UI overview](#ui-overview)
-- [Custom Chat flow (step-by-step)](#custom-chat-flow-step-by-step)
-- [API buttons (Connect, Send, Get channel, Get conversation, Disconnect)](#api-buttons-connect-send-get-channel-get-conversation-disconnect)
-- [SDK loading](#sdk-loading)
+- [Open chat flow](#open-chat-flow)
+- [API buttons](#api-buttons)
 - [Contact details](#contact-details)
+- [SDK loading](#sdk-loading)
 - [Files](#files)
 - [Troubleshooting](#troubleshooting)
 
 ---
 
-## Who this is for
-
-- **Integrators** adding AWR Connect chat to their own site or app (e.g. help widget, support chat).
-- **Developers** who need to see how the SDK is used (connect, send, receive, real-time) before wiring it into their stack.
-- **QA / support** who need a simple way to test a Custom Channel end-to-end (visitor sends, agent replies, messages in real time).
-
-You need a running **AWR Connect API** and a **Custom Channel** (connection key + secret from the webapp). No backend or build step is required for the demo; the SDK is loaded from **unpkg** by default.
-
----
-
 ## What you get
 
-- **In-page documentation** (`index.html`): overview, installation, quick start, full API reference, types, events, authentication.
-- **Credentials form:** Base URL, Channel ID, Secret, optional Session ID and Visitor name.
-- **Open chat:** Click **Open chat** to start a real-time chat: history is loaded, then new agent messages arrive via Socket.IO. You can send text or **Attach** media (`uploadMedia` then `sendMessage`). Each send includes `sessionId` and `visitorName`.
-- **API buttons:** **Connect**, **Send message**, **Get channel info**, **Get conversation**, **Disconnect** â€“ each runs the corresponding SDK (or fetch) operation and logs the result.
-- **Contact details:** Country, Language and Attributes (JSON) fill the agent's contact card. They are sent as `config.contact` when you open the chat, per message with **Send message**, and on demand with **Update contact** (`updateContact`). See [Contact details](#contact-details).
-- **Log:** All operations and errors are printed in the Log area. Use **Clear log** to reset.
+- **In-page documentation** (`index.html`): overview, security, installation, quick start, history (`getMessageWindow`), media, delivery/read status, contact details, API reference, types, events, authentication and CORS.
+- **Open chat:** a real-time chat that uses the SDK the way an integrator should:
+  - history through `getMessageWindow` (seq-based, with **Load older messages**),
+  - live agent replies on `message`, ordered by `seq` and de-duplicated by `socialMessageId`,
+  - sent / delivered / read ticks on your messages from `message_status`,
+  - agent messages reported as read with `markMessagesRead`,
+  - media rendered through `getMessageDisplayUrl` / `getMessageFullUrl` (image, audio, video, document) and patched on `message_media_ready`,
+  - **Attach** uploads with `uploadMedia` (with progress) then sends a media message,
+  - a status line for `reconnecting` / `reconnected`.
+- **API buttons:** Connect, Send message, Get channel info, Get message window, Update contact, Disconnect. Each runs one SDK call (or the same request with `fetch()` when the SDK is not loaded) and prints the result in the **Log**.
+- **Contact details:** Country, Language and Attributes (JSON) that fill the agent's contact card.
 
 ---
 
 ## Prerequisites
 
-1. **AWR Connect API** running (e.g. `http://localhost:8081` or your deployed base URL). The page will send requests to this origin; CORS must allow your page origin.
-2. **A Custom Channel** created in the AWR Connect webapp:
-   - Channels â†’ Add Channel â†’ Add Custom Channel.
-   - Create the channel and copy the **connection key** (Channel ID) and **secret** (shown once).
-3. **Browser or static server:** Open `index.html` via `file://` or serve the folder (e.g. `npx serve .`, `python3 -m http.server 3000`). For loading the SDK from unpkg, a static server is recommended.
+1. **Adventist Inbox API** running, e.g. `http://localhost:8081` or your deployed `https://` URL. The SDK only allows `http://` for `localhost` / `127.0.0.1`.
+2. **A Custom Channel** created in the Adventist Inbox webapp (Channels → Add Channel → Custom Channel). Copy the **connection key** (Channel ID) and the **secret** (shown once).
+3. **Your page origin in the channel's `allowedOrigins`** (exact `http(s)://host[:port]`, no path), e.g. `http://localhost:3000`. Without it the browser blocks the requests (CORS).
 
 ---
 
 ## How to run
 
-1. **Serve the folder** (recommended):
+1. **Serve the workspace folder** that contains both this repo and `awr-connect-custom-channel-js-sdk`, so the local SDK fallback resolves:
+
    ```bash
+   # from the folder that contains awr-connect-sdk-implementation/
    npx serve .
-   # or
-   python3 -m http.server 3000
    ```
-   Then open `http://localhost:3000` (or the port shown).
 
-2. **Or open `index.html`** directly in the browser (file protocol). Some browsers may restrict cross-origin requests when using `file://`.
+   Open `http://localhost:3000/awr-connect-sdk-implementation/`. (Once `adventist-inbox-sdk@0.6.0` is on npm, serving this folder alone works too.)
 
-3. **Fill credentials:**
-   - **Base URL:** Your AWR Connect API root (e.g. `http://localhost:8081`). No trailing slash.
-   - **Channel ID:** The Custom Channel connection key (not an internal numeric ID).
-   - **Secret:** The channel secret.
-   - **Session ID:** pre-filled with a new UUID on page load. SDK 0.5.0+ only accepts UUIDs (e.g. `crypto.randomUUID()`); reuse the same value to continue a conversation.
-   - **Visitor name** (optional): e.g. `Alice`. Used in chat and in send payloads.
+2. **Fill in the form:**
+   - **Base URL:** API root, no trailing slash.
+   - **Channel ID:** the connection key (not a numeric id).
+   - **Secret:** the channel secret.
+   - **Session ID:** pre-filled with a new UUID. The SDK only accepts UUIDs; keep the value to continue the same conversation later.
+   - **Visitor name:** shown in the inbox.
+   - **Contact details** (optional): see [Contact details](#contact-details).
 
-4. **Open chat:** Click **Open chat**. The app creates an `AdventistInboxClient` with `baseUrl`, `channelId`, `secret`, `sessionId`, and `visitorName`, attaches `connection_ready`, `connection_error`, `message`, and `error` listeners, then calls `connect()`. After `connection_ready`, it loads the first page of conversation with `getConversation(sessionId, { page: 1, limit: 50 })` and registers the `message` handler so new agent messages are appended. You can type in the input and click **Send**; each send uses `sendMessage(text, { sessionId, visitorName })`.
-
-5. **Leave chat:** Click **Leave chat** to disconnect the client and return to the credentials form.
+3. Click **Open chat**, or **Connect** to use the API buttons.
 
 ---
 
 ## UI overview
 
 | Element | Purpose |
-| -------- | -------- |
-| **Base URL** | AWR Connect API base URL. |
-| **Channel ID** | Custom Channel connection key. |
-| **Secret** | Channel secret (sent as `X-AWR-Channel-Secret`). |
-| **Session ID** | Optional; used for chat session and for send/getConversation. |
-| **Visitor name** | Optional; displayed and sent in message metadata. |
-| **Open chat** | Starts real-time chat: connect â†’ load history â†’ listen for `message`. |
-| **Connect** | Connects the client (SDK or mock). Enables Send, Get channel, Get conversation, Disconnect. |
-| **Send message** | Sends the text in â€œMessage textâ€ with current sessionId/visitorName. |
-| **Get channel info** | Calls `getChannelInfo()` and logs the result. |
-| **Get conversation** | Calls `getConversation(sessionId, { page: 1, limit: 20 })` and logs messages and pagination. |
-| **Disconnect** | Disconnects the client and clears connected state. |
-| **Log** | Shows timestamps and messages for each operation and errors. |
-| **Chat panel** | Message list (history + incoming agent messages), input, and Send. |
-| **Country / Language** | Optional ISO codes (e.g. `NG`, `en-US`) for the contact's Location and Language. |
-| **Attributes** | Optional JSON object of key-value details shown to agents (e.g. `{"platform": "web"}`); `null` removes a key. |
-| **Update contact** | Calls `updateContact({ sessionId, country, language, attributes })` for the open chat, or for the form's Session ID after Connect. |
+| ------- | ------- |
+| **Base URL / Channel ID / Secret** | Client config (`baseUrl`, `channelId`, `secret`). |
+| **Session ID** | Visitor session (UUID) used by Open chat, Send message, Get message window and Update contact. |
+| **Visitor name** | `visitorName` in config and send options. |
+| **Open chat** | Real-time chat (see [Open chat flow](#open-chat-flow)). |
+| **Connect** | REST-only client (no `sessionId` in config); enables the API buttons. |
+| **Send message** | `sendMessage(text, { sessionId, visitorName, contact })`. |
+| **Get channel info** | `getChannelInfo()`. |
+| **Get message window** | `getMessageWindow(sessionId, { intent: "present", limit: 20 })`. |
+| **Disconnect** | `disconnect()`. |
+| **Country / Language / Attributes** | Contact details (`ContactProfile`). |
+| **Update contact** | `updateContact({ sessionId, ...contact })` for the open chat, or for the form's Session ID after Connect. |
+| **Log** | Timestamped results and errors. |
+| **Chat panel** | Messages with ticks, Load older messages, Attach, input and Send. |
 
 ---
 
-## Custom Chat flow (step-by-step)
+## Open chat flow
 
-1. User fills Base URL, Channel ID, Secret; optionally Session ID and Visitor name.
-2. User clicks **Open chat**.
-3. App creates `AdventistInboxClient({ baseUrl, channelId, secret, sessionId, visitorName, contact })`. `contact` comes from the Contact details fields and is left out when they are empty.
-4. App attaches:
-   - `connection_ready` â†’ hide error banner, set header text, call `getConversation(sessionId, { page: 1, limit: 50 })`, render `res.messages`, then attach `message` handler to append new messages.
-   - `connection_error` â†’ show error banner.
-   - `error` â†’ show error banner.
-5. App calls `client.connect()`. Credentials form is hidden, chat panel is shown.
-6. When the server acknowledges the join, `connection_ready` runs; history is fetched and rendered; the `message` listener is active.
-7. User types and clicks **Send**. App calls `client.sendMessage(text, { sessionId: chatSessionId, visitorName: chatVisitorName })`. On success, a local â€œcontactâ€ bubble is appended and the input is cleared.
-8. When an agent replies in the AWR Connect inbox, the API emits to the session room; the SDK receives it and emits `message`; the handler appends the agent message to the list.
-9. User changes Contact details and clicks **Update contact**. App calls `client.updateContact({ sessionId: chatSessionId, ...contact })`; because the sessionId matches the client's own, the SDK also updates `config.contact`, so later messages carry the new values.
-10. User clicks **Leave chat**. App removes the `message` listener, calls `client.disconnect()`, and shows the credentials form again.
+1. `new AdventistInboxClient({ baseUrl, channelId, secret, sessionId, visitorName, contact })`. `contact` comes from the Contact details fields and is left out when they are empty.
+2. Listeners are registered **before** `connect()`:
+   - `connection_ready` → load history with `getMessageWindow(sessionId, { intent: "present", limit: 50 })`. A 404 means the session has no conversation yet and is treated as empty.
+   - `message` → add or update the bubble, then `markMessagesRead` for agent messages.
+   - `message_media_ready` → patch the bubble's media (`resolveDurableMediaUrl`).
+   - `message_status` → update the tick on your own message.
+   - `reconnecting` / `reconnected` → status line. The SDK replays missed messages as `message` after a reconnect.
+   - `connection_error` → error banner; `error` → log.
+3. `connect()` opens Socket.IO and joins the session room.
+4. **Send:** `sendMessage(text, { sessionId, visitorName })`. The bubble is keyed by the returned `socialMessageId`, so `message_status` (and any echo of the same message) updates it instead of adding a duplicate.
+5. **Attach:** `uploadMedia(file, { sessionId, mediaType, onProgress })` (image, audio or document; video upload is not supported by the SDK), then `sendMessage(caption, { messageType: "media", mediaUrl, mediaType })`.
+6. **Load older messages:** `getMessageWindow(sessionId, { intent: "older", beforeSeq: oldestSeq, limit: 50 })` while `hasOlder` is true.
+7. **Update contact:** `updateContact({ sessionId, ...contact })`. Because the sessionId is the client's own, the SDK also updates `config.contact`, so later messages carry the new values.
+8. **Leave chat:** removes the listeners with `off()` and calls `disconnect()`.
 
-Important details that match the SDK docs: **sessionId** is required in every `sendMessage` call; **connection_ready** has no payload; **getConversation** is called with `(sessionId, { page, limit })`; the client must be connected before `getConversation`.
-
----
-
-## API buttons (Connect, Send, Get channel, Get conversation, Disconnect)
-
-- **Connect:** Builds config from the form (baseUrl, channelId, secret; sessionId/visitorName only used for Send and Get conversation). If the SDK is loaded, creates `AdventistInboxClient`, attaches `connection_ready` / `connection_error` / `error`, calls `connect()`. If the SDK is not loaded, sets a mock â€œconnectedâ€ state. Enables the other buttons.
-- **Send message:** Reads â€œMessage textâ€ and sessionId/visitorName from the form. Contact details are read too. If using the SDK, calls `client.sendMessage(text, { sessionId, visitorName, contact })`; otherwise uses the built-in `fetchSendMessage()` that POSTs the same `message` shape to `/webhook/custom`, with `country`, `language` and `attributes` in `message.metadata`. Logs success or failure.
-- **Update contact:** Calls `client.updateContact({ sessionId, ...contact })` (or fetch `POST /webhook/custom/contact` with `{ sessionId, country?, language?, attributes? }`). Fails with 404 until the visitor has sent a message.
-- **Get channel info:** Calls `client.getChannelInfo()` (or fetch to `GET /webhook/custom/channels/:channelId`) and logs the response.
-- **Get conversation:** Calls `client.getConversation(sessionId, { page: 1, limit: 20 })` (or fetch to `GET /webhook/custom/channels/:channelId/contact/:sessionId?page=1&limit=20`) and logs `messages` and `pagination`.
-- **Disconnect:** If using the SDK, calls `client.disconnect()`. Clears the client reference and disables the other buttons.
-
-All of these require being â€œconnectedâ€ first (Connect clicked). The implementation uses the same config field names as the SDK: `baseUrl`, `channelId`, `secret`, `sessionId`, `visitorName`.
+Window rows are passed through `toSimplifiedMessage()` so they render exactly like socket messages, with unsafe media URLs removed. Agent buttons are shown as labels; the demo does not send button replies.
 
 ---
 
-## SDK loading
+## API buttons
 
-- **Default:** The loader script at the bottom of `index.html` loads `adventist-inbox-sdk@0.6.0` from **unpkg**. The bundle exposes `AdventistInbox.AdventistInboxClient`; `app.js` also accepts the older `AwrConnectClient` globals.
-- **Local build fallback:** If unpkg fails (for example before 0.6.0 is published), the loader tries `../awr-connect-custom-channel-js-sdk/dist/index.umd.js`. Build it with `pnpm build` in that repo and serve the **parent** folder so the relative path resolves, e.g. `npx serve ..` and open `/awr-connect-sdk-implementation/`.
-- **Without SDK:** The Connect, Send, Get channel, and Get conversation buttons fall back to `fetch()` and implement the same request shapes (nested `message` body for POST, correct GET URLs). The **Open chat** flow requires the SDK (real-time `message` events).
+All of them need **Connect** first. Connect creates a client without `sessionId`, so it is REST-only and `connection_ready` fires immediately.
+
+- **Send message:** reads Message text, Session ID, Visitor name and Contact details. SDK: `sendMessage(text, { sessionId, visitorName, contact })`. fetch: `POST /webhook/custom` with the `message` object; `country`, `language` and `attributes` go in `message.metadata`.
+- **Get channel info:** `getChannelInfo()` / `GET /webhook/custom/channels/:channelId`.
+- **Get message window:** `getMessageWindow(sessionId, { intent: "present", limit: 20 })` / `GET /webhook/custom/channels/:channelId/contact/:sessionId/messages/window?intent=present&limit=20`. Throws 404 until the session has a conversation.
+- **Update contact:** `updateContact({ sessionId, ...contact })` / `POST /webhook/custom/contact` with `{ sessionId, country?, language?, attributes? }`. Fails with 404 until the visitor has sent a message.
+- **Disconnect:** `disconnect()`.
 
 ---
 
@@ -145,7 +126,7 @@ All of these require being â€œconnectedâ€ first (Connect clicked). The 
 Agents see a contact card next to each conversation. The demo fills it from the **Contact details** fields:
 
 - **Country** and **Language** fill the card's Location and Language only when they are empty, still the channel default, or a value you sent earlier. A value an agent set in the inbox is kept.
-- **Attributes** merge per key (`null` removes a key), up to 50 keys; they show read-only under *Additional details*.
+- **Attributes** merge per key (`null` removes a key), up to 50 keys, and show read-only under *Additional details*.
 - **Update contact** needs an existing contact: send a message first, otherwise the API returns 404.
 - Invalid or unknown codes on a message are skipped and the message is still delivered; **Update contact** reports them as a failure.
 
@@ -153,13 +134,22 @@ Full rules: the SDK README's *Contact details* section.
 
 ---
 
+## SDK loading
+
+- The loader script at the bottom of `index.html` tries `https://unpkg.com/adventist-inbox-sdk@0.6.0/dist/index.umd.js`, then the local build `../awr-connect-custom-channel-js-sdk/dist/index.umd.js`, then starts `app.js`.
+- Build the local SDK with `pnpm install && pnpm build` in `awr-connect-custom-channel-js-sdk`.
+- `app.js` uses the `AdventistInbox` global (`AdventistInboxClient` plus the media helpers and `toSimplifiedMessage`). It needs 0.6.0 or later for contact details; older `awr-client-js-sdk` builds are not supported.
+- **Without the SDK:** Connect and the API buttons use `fetch()` with the same requests; **Open chat** needs the SDK.
+
+---
+
 ## Files
 
 | File | Purpose |
-| ----- | ----- |
-| `index.html` | Documentation and live example UI (nav, sections, credentials form, chat panel, script tags). |
-| `styles.css` | Layout and styling for the doc and chat. |
-| `app.js` | Example logic: config from form, Open chat (connect, connection_ready, getConversation, message handler, send), Leave chat, Connect/Send/Get channel/Get conversation/Disconnect, Update contact, fetch fallbacks. |
+| ---- | ------- |
+| `index.html` | Documentation sections, live example UI, SDK loader. |
+| `styles.css` | Layout and styling for the docs and the chat. |
+| `app.js` | Example logic: config and contact details from the form, Open chat (events, message window, ticks, read receipts, media, upload), API buttons, fetch fallbacks. |
 | `README.md` | This file. |
 
 ---
@@ -167,15 +157,20 @@ Full rules: the SDK README's *Contact details* section.
 ## Troubleshooting
 
 | Issue | What to check |
-| ----- | -------------- |
-| â€œOpen chat failed: baseUrl, channelId, and secret are requiredâ€ | Fill Base URL, Channel ID, and Secret. |
-| â€œSDK not loadedâ€ | Ensure the unpkg script loads (network tab). If using a local bundle, path and server must allow the script to run. |
-| â€œConnection errorâ€ / â€œCustom channel not foundâ€ | Wrong Base URL, wrong Channel ID (use connection key), or channel not created. Check API and CORS. |
-| 401 Unauthorized | Wrong Secret. |
-| CORS errors | Configure the AWR Connect API to allow your page origin (e.g. `http://localhost:3000`). |
-| Agent reply not showing in chat | Same Session ID as in the open chat; agent replying to that conversation in the inbox; `connection_ready` fired (check Log or error banner). |
-| Update contact returns 404 | The contact is created by the visitor's first message. Send a message with the same Session ID first. |
+| ----- | ------------- |
+| "SDK not loaded" | The unpkg script failed and the local build was not found. Serve the parent folder and build the SDK (see [SDK loading](#sdk-loading)). |
+| `sessionId must be a UUID` | Use the pre-filled Session ID or another `crypto.randomUUID()` value. |
+| `baseUrl must use https` | Use `https://…`, or `http://localhost` for a local API. |
+| CORS errors | Add the page origin (e.g. `http://localhost:3000`) to the Custom Channel's `allowedOrigins`; allow about a minute on multi-instance deploys. |
+| Connection error / custom channel not found | Wrong Base URL, or Channel ID is not the connection key. |
+| 401 Unauthorized | Wrong secret. |
+| `custom:join timed out` | API or Socket.IO not reachable from the browser; check the Base URL and proxy. |
+| No history in Open chat | A new Session ID has no conversation until the first message. To continue a conversation, reuse its Session ID. |
+| Get message window returns 404 | Same as above: no conversation for that Session ID yet. |
+| Agent reply not showing | Same Session ID in the chat and the inbox conversation; `connection_ready` fired (check the Log). |
+| No read ticks in the inbox | Agent messages need a `socialMessageId`; check the Log for `markMessagesRead` errors. |
+| Media bubble says "Media is processing" | Wait for `message_media_ready`; if it stays, the URL was not `https:` and was removed. |
+| Update contact returns 404 | The contact is created by the visitor's first message. Send one with the same Session ID first. |
 | Contact card still shows Location: Unknown | Check the country code (ISO alpha-2/alpha-3) and that an agent hasn't set Location already; an agent's value is never overwritten. |
-| Get conversation returns empty | Use the same Session ID you used when sending; ensure you clicked Connect before Get conversation. |
 
-For more SDK-level troubleshooting (e.g. `sessionId` colon, mediaUrl required, join timeout, status events), see the **adventist-inbox-sdk** [README](https://github.com/awr360/awr-connect-custom-channel-js-sdk) and [TESTING.md](https://github.com/awr360/awr-connect-custom-channel-js-sdk/blob/main/TESTING.md).
+For SDK-level details see the **adventist-inbox-sdk** [README](https://github.com/awr360/awr-connect-custom-channel-js-sdk) and [TESTING.md](https://github.com/awr360/awr-connect-custom-channel-js-sdk/blob/main/TESTING.md).

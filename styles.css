@@ -1,4 +1,4 @@
-/* AWR Connect SDK – Documentation & implementation site */
+/* Adventist Inbox SDK – Documentation & implementation site */
 
 :root {
   --bg: #0f1419;
@@ -192,6 +192,16 @@ body {
   padding: 0.75rem 1rem;
   border-radius: var(--radius);
   border-left: 3px solid var(--accent);
+}
+
+.note--warn {
+  border-left-color: var(--error);
+}
+
+.site-header code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--accent);
 }
 
 /* Example panel */
@@ -419,6 +429,31 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
+.chat-status {
+  padding: 0.4rem 1rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  background: var(--bg-input);
+  border-bottom: 1px solid var(--border);
+}
+
+.btn-load-older {
+  align-self: center;
+  margin: 0.75rem auto 0;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.85rem;
+  font-family: var(--font-sans);
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-load-older:hover {
+  border-color: var(--accent);
+}
+
 .chat-messages {
   flex: 1;
   min-height: 240px;
@@ -490,6 +525,37 @@ body {
   max-width: 100%;
   min-width: 240px;
   height: 36px;
+}
+
+.chat-msg-media-video {
+  display: block;
+  max-width: 100%;
+  max-height: 280px;
+  border-radius: 6px;
+}
+
+.chat-msg-media--pending {
+  font-style: italic;
+  opacity: 0.8;
+}
+
+.chat-msg-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.chat-msg-button {
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--accent);
+}
+
+.chat-msg--failed {
+  outline: 1px solid var(--error);
 }
 
 .chat-msg-media a {
