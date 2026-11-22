@@ -226,6 +226,19 @@ body {
   border-radius: 6px;
 }
 
+.example-form textarea {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.95rem;
+  font-family: var(--font-mono);
+  color: var(--text);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  resize: vertical;
+}
+
+.example-form textarea:focus,
 .example-form input:focus {
   outline: none;
   border-color: var(--accent);
@@ -235,6 +248,18 @@ body {
 .example-form input::placeholder {
   color: var(--text-muted);
   opacity: 0.8;
+}
+
+.contact-form {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+
+.form-row-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0 1rem;
 }
 
 .example-send-row {

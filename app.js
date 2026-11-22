@@ -10,6 +10,11 @@
   // Resolve SDK constructor from known UMD global shapes across package versions/builds.
   function resolveAwrConnectClient() {
     if (typeof window === "undefined") return undefined;
+    // adventist-inbox-sdk 0.5.0+ (IIFE global "AdventistInbox").
+    if (window.AdventistInbox && window.AdventistInbox.AdventistInboxClient) {
+      return window.AdventistInbox.AdventistInboxClient;
+    }
+    // Older awr-client-js-sdk builds.
     if (window.AwrConnectClient) return window.AwrConnectClient;
     if (window.awrClientJsSdk && window.awrClientJsSdk.AwrConnectClient) return window.awrClientJsSdk.AwrConnectClient;
     if (
@@ -47,6 +52,10 @@
   const btnChatAttach = document.getElementById("btn-chat-attach");
   const btnChatSend = document.getElementById("btn-chat-send");
   const btnLeaveChat = document.getElementById("btn-leave-chat");
+  const contactCountryEl = document.getElementById("contactCountry");
+  const contactLanguageEl = document.getElementById("contactLanguage");
+  const contactAttributesEl = document.getElementById("contactAttributes");
+  const btnUpdateContact = document.getElementById("btn-update-contact");
 
   let client = null;
   let useSdk = false;
@@ -55,6 +64,14 @@
   let chatSessionId = "";
   let chatVisitorName = "";
   let chatMessageHandler = null;
+
+  /** SDK 0.5.0+ only accepts UUID session ids (guessable ids are rejected). */
+  function newSessionId() {
+    if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, function (c) {
+      return (c ^ (window.crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16);
+    });
+  }
 
   function ensureSlash(url) {
     return url.endsWith("/") ? url.slice(0, -1) : url;
@@ -71,9 +88,36 @@
     const baseUrl = (baseUrlEl && baseUrlEl.value && baseUrlEl.value.trim()) || "";
     const channelId = (channelIdEl && channelIdEl.value && channelIdEl.value.trim()) || "";
     const secret = (secretEl && secretEl.value && secretEl.value.trim()) || "";
-    const sessionId = (sessionIdEl && sessionIdEl.value && sessionIdEl.value.trim()) || "demo-session-" + Date.now();
+    const sessionId = (sessionIdEl && sessionIdEl.value && sessionIdEl.value.trim()) || newSessionId();
     const visitorName = (visitorNameEl && visitorNameEl.value && visitorNameEl.value.trim()) || "Demo Visitor";
     return { baseUrl, channelId, secret, sessionId, visitorName };
+  }
+
+  /**
+   * Contact details from the "Contact details" form, as a ContactProfile:
+   * { country?, language?, attributes? }. Returns undefined when every field is empty.
+   * Throws when the attributes box is not a JSON object.
+   */
+  function getContactProfile() {
+    const country = (contactCountryEl && contactCountryEl.value.trim()) || "";
+    const language = (contactLanguageEl && contactLanguageEl.value.trim()) || "";
+    const rawAttributes = (contactAttributesEl && contactAttributesEl.value.trim()) || "";
+    const profile = {};
+    if (country) profile.country = country;
+    if (language) profile.language = language;
+    if (rawAttributes) {
+      let attributes;
+      try {
+        attributes = JSON.parse(rawAttributes);
+      } catch (e) {
+        throw new Error("Attributes must be valid JSON: " + e.message);
+      }
+      if (!attributes || typeof attributes !== "object" || Array.isArray(attributes)) {
+        throw new Error('Attributes must be a JSON object, e.g. {"platform": "web"}');
+      }
+      profile.attributes = attributes;
+    }
+    return Object.keys(profile).length > 0 ? profile : undefined;
   }
 
   function setConnected(connected) {
@@ -186,16 +230,25 @@
       log("Open chat failed: SDK not loaded. Load from unpkg or build the SDK.", true);
       return;
     }
+    let contact;
+    try {
+      contact = getContactProfile();
+    } catch (e) {
+      log("Open chat failed: " + e.message, true);
+      return;
+    }
     hideChatError();
     chatSessionId = sessionId;
     chatVisitorName = visitorName;
     try {
+      // config.contact rides on every message; later changes go through updateContact().
       chatClient = new AwrConnectClient({
         baseUrl,
         channelId,
         secret,
         sessionId: chatSessionId,
         visitorName: chatVisitorName,
+        contact,
       });
       chatClient.on("connection_ready", function onReady() {
         hideChatError();
@@ -228,6 +281,7 @@
       if (chatInput) chatInput.value = "";
       log("Opened chat (session: " + chatSessionId + ").");
     } catch (e) {
+      chatClient = null;
       showChatError("Open chat failed: " + e.message);
       log("Open chat error: " + e.message, true);
     }
@@ -317,8 +371,79 @@
     log("Left chat.");
   }
 
+  /**
+   * Update contact details without sending a message. Uses the chat client when the chat is
+   * open, otherwise the Connect client (SDK or fetch). The contact must already exist: the
+   * visitor's first message creates it.
+   */
+  async function onUpdateContact() {
+    const { baseUrl, channelId, secret, sessionId } = getConfig();
+    const inChat = !!chatClient;
+    const report = function (msg, isError) {
+      log(msg, isError);
+      if (inChat && isError) showChatError(msg);
+    };
+    const activeClient = chatClient || client;
+    if (!activeClient) {
+      report("Update contact: open the chat or click Connect first.", true);
+      return;
+    }
+    let profile;
+    try {
+      profile = getContactProfile();
+    } catch (e) {
+      report("Update contact failed: " + e.message, true);
+      return;
+    }
+    if (!profile) {
+      report("Update contact: fill in country, language or attributes first.", true);
+      return;
+    }
+    const targetSessionId = inChat ? chatSessionId : sessionId;
+    if (inChat) hideChatError();
+    try {
+      let result;
+      if (inChat || (useSdk && client.updateContact)) {
+        if (!activeClient.updateContact) {
+          report("Update contact: SDK updateContact not available. Load adventist-inbox-sdk@0.6.0 or later.", true);
+          return;
+        }
+        result = await activeClient.updateContact(Object.assign({ sessionId: targetSessionId }, profile));
+      } else {
+        result = await fetchUpdateContact(baseUrl, secret, targetSessionId, profile);
+      }
+      if (result.success) {
+        let msg = "Update contact: saved for session " + targetSessionId + ".";
+        if (result.droppedAttributes && result.droppedAttributes.length > 0) {
+          msg += " Not saved (50-key limit): " + result.droppedAttributes.join(", ") + ".";
+        }
+        log(msg);
+      } else {
+        report("Update contact failed: " + (result.message || "unknown"), true);
+      }
+    } catch (e) {
+      report("Update contact error: " + e.message, true);
+    }
+  }
+
   /** Fallback: same REST calls as the SDK (no SDK dependency). */
-  async function fetchSendMessage(baseUrl, channelId, secret, sessionId, visitorName, text) {
+  async function fetchUpdateContact(baseUrl, secret, sessionId, profile) {
+    const base = ensureSlash(baseUrl);
+    const res = await fetch(base + "/webhook/custom/contact", {
+      method: "POST",
+      headers: {
+        "X-AWR-Channel-Secret": secret,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(Object.assign({ sessionId }, profile)),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { success: false, message: data.message || "HTTP " + res.status };
+    const dropped = (data.data && data.data.droppedAttributes) || [];
+    return dropped.length > 0 ? { success: true, message: data.message, droppedAttributes: dropped } : { success: true };
+  }
+
+  async function fetchSendMessage(baseUrl, channelId, secret, sessionId, visitorName, text, contact) {
     const base = ensureSlash(baseUrl);
     const url = base + "/webhook/custom";
     const res = await fetch(url, {
@@ -333,13 +458,17 @@
           messageType: "TEXT",
           textMessage: text,
           socialMessageId: null,
-          metadata: {
-            sessionId,
-            visitorName,
-            customChannelId: channelId,
-            senderType: "CONTACT",
-            timestamp: new Date().toISOString(),
-          },
+          // contact = { country?, language?, attributes? } sits flat in metadata.
+          metadata: Object.assign(
+            {
+              sessionId,
+              visitorName,
+              customChannelId: channelId,
+              senderType: "CONTACT",
+              timestamp: new Date().toISOString(),
+            },
+            contact || {}
+          ),
         },
       }),
     });
@@ -429,6 +558,7 @@
         useSdk = true;
         log("Connected via SDK.");
       } catch (e) {
+        client = null;
         log("SDK connect error: " + e.message, true);
         return;
       }
@@ -449,11 +579,15 @@
     }
 
     try {
+      // The Connect client has no sessionId in its config, so contact details go per message.
+      const contact = getContactProfile();
       let result;
       if (useSdk && client.sendMessage) {
-        result = await client.sendMessage(text, { sessionId, visitorName });
+        const opts = { sessionId, visitorName };
+        if (contact) opts.contact = contact;
+        result = await client.sendMessage(text, opts);
       } else {
-        result = await fetchSendMessage(baseUrl, channelId, secret, sessionId, visitorName, text);
+        result = await fetchSendMessage(baseUrl, channelId, secret, sessionId, visitorName, text, contact);
       }
       if (result.success) {
         log("Send message: success.");
@@ -530,6 +664,7 @@
   if (btnClearLog) btnClearLog.addEventListener("click", clearLog);
   if (btnOpenChat) btnOpenChat.addEventListener("click", openChat);
   if (btnLeaveChat) btnLeaveChat.addEventListener("click", leaveChat);
+  if (btnUpdateContact) btnUpdateContact.addEventListener("click", onUpdateContact);
   if (btnChatSend) btnChatSend.addEventListener("click", onChatSend);
   if (btnChatAttach && chatFileInput) {
     btnChatAttach.addEventListener("click", function () {
@@ -558,6 +693,9 @@
       onConnect();
     });
   }
+
+  // Pre-fill a stable session id so Send, Update contact and Open chat all target the same visitor.
+  if (sessionIdEl && !sessionIdEl.value.trim()) sessionIdEl.value = newSessionId();
 
   log("AWR Connect SDK example loaded. Enter credentials and click Open chat or Connect.");
 })();

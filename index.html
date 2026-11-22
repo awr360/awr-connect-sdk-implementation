@@ -22,6 +22,7 @@
       <a href="#installation">Installation</a>
       <a href="#quick-start">Quick start</a>
       <a href="#media">Media upload &amp; display</a>
+      <a href="#contact">Contact details</a>
       <a href="#api">API reference</a>
       <a href="#types">Types</a>
       <a href="#events">Events</a>
@@ -34,7 +35,7 @@
     <section id="overview" class="doc-section">
       <h2>Overview</h2>
       <p>
-        The <strong>AWR Connect Client JS SDK</strong> (<code>awr-client-js-sdk</code>) lets you connect your own UI to
+        The <strong>AWR Connect Client JS SDK</strong> (<code>adventist-inbox-sdk</code>) lets you connect your own UI to
         the AWR Connect chat platform via a <strong>Custom Channel</strong>. You use the channelâ€™s connection key
         (<code>channelId</code>) and secret to send messages over REST and receive agent replies in real time over Socket.IO.
       </p>
@@ -42,34 +43,36 @@
         <li><strong>Real-time:</strong> Pass <code>sessionId</code> in config and call <code>connect()</code>; the SDK opens Socket.IO and joins a session room. Agent messages arrive via <code>message</code>; status via <code>message_status</code>; media finalize via <code>message_media_ready</code>.</li>
         <li><strong>REST:</strong> <code>sendMessage()</code>, <code>sendMessageStatus()</code>, and <code>getConversation(sessionId, options)</code>; call <code>connect()</code> first.</li>
         <li><strong>Media:</strong> Use <code>uploadMedia(file, { sessionId, mediaType })</code> (S3 upload-intents), then <code>sendMessage(caption, { sessionId, messageType: 'media', mediaUrl, mediaType })</code>. History/socket payloads may include time-limited <code>mediaUrl</code> / <code>thumbnail</code>.</li>
-        <li>Use a stable <code>sessionId</code> per visitor (must not contain <code>:</code>). <code>options.sessionId</code> is required on every <code>sendMessage()</code>, <code>uploadMedia()</code>, and <code>sendMessageStatus()</code>.</li>
-        <li>Requires <code>awr-client-js-sdk@0.3.0</code> or later. Obtain the connection key and secret when creating the Custom Channel in the webapp; the secret is shown only once.</li>
+        <li><strong>Contact details:</strong> Pass <code>contact: { country, language, attributes }</code> in config (sent with every message) to fill the agent's contact card, and call <code>updateContact({ sessionId, ... })</code> to change it without sending a message.</li>
+        <li>Use a stable <code>sessionId</code> per visitor. It must be a <strong>UUID</strong> (e.g. <code>crypto.randomUUID()</code>); guessable ids like <code>user-123</code> are rejected. <code>options.sessionId</code> is required on every <code>sendMessage()</code>, <code>uploadMedia()</code>, and <code>sendMessageStatus()</code>.</li>
+        <li>Requires <code>adventist-inbox-sdk@0.6.0</code> or later. Obtain the connection key and secret when creating the Custom Channel in the webapp; the secret is shown only once.</li>
       </ul>
     </section>
 
     <section id="installation" class="doc-section">
       <h2>Installation</h2>
       <p>From your project root:</p>
-      <pre class="code-block"><code>pnpm add awr-client-js-sdk</code></pre>
+      <pre class="code-block"><code>pnpm add adventist-inbox-sdk</code></pre>
       <p>In the browser, load the UMD bundle from unpkg or a local build of
-        <code>awr-connect-custom-channel-js-sdk</code>:
+        <code>awr-connect-custom-channel-js-sdk</code>, then use <code>AdventistInbox.AdventistInboxClient</code>:
       </p>
       <pre
-        class="code-block"><code>&lt;script src="https://unpkg.com/awr-client-js-sdk@0.3.0/dist/index.umd.js"&gt;&lt;/script&gt;</code></pre>
+        class="code-block"><code>&lt;script src="https://unpkg.com/adventist-inbox-sdk@0.6.0/dist/index.umd.js"&gt;&lt;/script&gt;</code></pre>
     </section>
 
     <section id="quick-start" class="doc-section">
       <h2>Quick start</h2>
       <p>Config uses <code>baseUrl</code>, <code>channelId</code>, and <code>secret</code>. For real-time receive, add <code>sessionId</code> (and optional <code>visitorName</code>). Register listeners before <code>connect()</code>. Send only after <code>connection_ready</code> fires (no payload). <code>getConversation(sessionId, options)</code> requires the client to be connected.</p>
-      <pre class="code-block"><code>import { AwrConnectClient } from "awr-client-js-sdk";
+      <pre class="code-block"><code>import { AdventistInboxClient } from "adventist-inbox-sdk";
 
-const sessionId = "user-session-123";
-const client = new AwrConnectClient({
+const sessionId = crypto.randomUUID(); // must be a UUID; store it per visitor
+const client = new AdventistInboxClient({
   baseUrl: "https://your-api.example.com",
   channelId: "your-connection-key",
   secret: "your-channel-secret",
   sessionId,
   visitorName: "Alice",
+  contact: { country: "NG", language: "en", attributes: { platform: "web" } }, // optional
 });
 
 client.on("connection_ready", () => {
@@ -99,11 +102,45 @@ client.disconnect();</code></pre>
       <p><strong>Display:</strong> This example renders images inline (<code>&lt;img&gt;</code>), audio with <code>&lt;audio controls&gt;</code>, and documents as download links. Use <code>messageType</code> and <code>mediaType</code> to choose the right UI.</p>
     </section>
 
+    <section id="contact" class="doc-section">
+      <h2>Contact details</h2>
+      <p>Agents see a contact card next to each conversation. The SDK can fill its <strong>Location</strong> and <strong>Language</strong> and add key-value <strong>attributes</strong> (such as app platform and version), shown read-only under <em>Additional details</em>.</p>
+      <pre class="code-block"><code>// Defaults: sent with every message
+const client = new AdventistInboxClient({
+  baseUrl, channelId, secret, sessionId,
+  visitorName: "Alex",
+  contact: {
+    country: "NG",        // ISO 3166-1 alpha-2 or alpha-3
+    language: "en-US",    // ISO 639-1 or 639-3; region subtag is ignored
+    attributes: { platform: "ios", appVersion: "3.2.1" },
+  },
+});
+
+// One message only: merged over config.contact
+await client.sendMessage("Hi", { sessionId, contact: { attributes: { screen: "checkout" } } });
+
+// Without sending a message (e.g. after an app update)
+const result = await client.updateContact({
+  sessionId,
+  attributes: { appVersion: "3.3.0", betaTester: null }, // null removes a key
+});
+if (!result.success) console.error(result.message);</code></pre>
+      <ul>
+        <li><strong>Country and language fill empty values only.</strong> They are written when the contact has none, when the language is still the channel default, or when the value is one you sent earlier. A value an agent set in the inbox is kept.</li>
+        <li><strong>Attributes merge per key</strong>; <code>null</code> removes a key. Up to 50 keys per contact. Keys start with a letter and use letters, digits, <code>_</code>, <code>.</code> or <code>-</code> (max 64 chars). Values are a string (max 500 chars), number or boolean.</li>
+        <li><strong>The contact must exist.</strong> The visitor's first message creates it; before that <code>updateContact</code> returns <code>{ success: false }</code> (HTTP 404). Put values in <code>config.contact</code> so they ride on that first message.</li>
+        <li>When <code>sessionId</code> is the client's own <code>config.sessionId</code>, <code>updateContact</code> also updates <code>config.contact</code>, so a later message does not revert the change.</li>
+        <li>On <code>sendMessage</code>, an invalid or unknown code is skipped and the message is still delivered. <code>updateContact</code> returns <code>{ success: false }</code> with the reason instead.</li>
+        <li>Other <code>metadata</code> keys sent over the raw webhook are stored but <strong>not</strong> shown to agents. Use <code>attributes</code> for anything agents should see.</li>
+      </ul>
+      <p><strong>Raw REST:</strong> <code>POST /webhook/custom/contact</code> with body <code>{ sessionId, country?, language?, attributes? }</code>. On <code>POST /webhook/custom</code>, put the same three keys in <code>message.metadata</code>.</p>
+    </section>
+
     <section id="api" class="doc-section">
       <h2>API reference</h2>
       <dl class="api-dl">
         <dt><code>constructor(config?: AwrConnectConfig)</code></dt>
-        <dd>Create a client. Pass <code>baseUrl</code>, <code>channelId</code>, <code>secret</code>; optionally <code>sessionId</code>, <code>visitorName</code>, <code>requestId</code>.</dd>
+        <dd>Create a client. Pass <code>baseUrl</code>, <code>channelId</code>, <code>secret</code>; optionally <code>sessionId</code>, <code>visitorName</code>, <code>requestId</code>, <code>contact</code>.</dd>
 
         <dt><code>setConfig(config: AwrConnectConfig): void</code></dt>
         <dd>Set or update configuration.</dd>
@@ -124,7 +161,10 @@ client.disconnect();</code></pre>
         <dd>Upload via S3 upload-intents (create â†’ PUT â†’ complete/poll). Options: <code>sessionId</code>, <code>mediaType</code> ('image' | 'audio' | 'document'), <code>visitorName?</code>, <code>requestId?</code>, <code>onProgress?(percent)</code>. Returns <code>{ mediaUrl, mediaType, thumbnail?, metadata? }</code>. Then call <code>sendMessage(caption, { sessionId, messageType: 'media', mediaUrl, mediaType })</code>. Lower-level: <code>createUploadIntent</code>, <code>uploadToS3</code>, <code>completeUploadIntent</code>.</dd>
 
         <dt><code>sendMessage(textOrContent: string, options: SendMessageOptions): Promise&lt;{ success: boolean; message?: string; socialMessageId: string }&gt;</code></dt>
-        <dd>Send a text or media message. <strong><code>options.sessionId</code> is required</strong> (must not contain <code>:</code>). Options: <code>visitorName?</code>, <code>messageType?</code> ('TEXT' | 'media'), <code>mediaUrl?</code> (required when messageType is 'media'), <code>mediaType?</code> ('audio' | 'image' | 'video' | 'document'), <code>socialMessageId?</code> (auto-generated when omitted). Always returns <code>socialMessageId</code>. Emits <code>error</code> on API failure.</dd>
+        <dd>Send a text or media message. <strong><code>options.sessionId</code> is required</strong> (must not contain <code>:</code>). Options: <code>visitorName?</code>, <code>messageType?</code> ('TEXT' | 'media'), <code>mediaUrl?</code> (required when messageType is 'media'), <code>mediaType?</code> ('audio' | 'image' | 'video' | 'document'), <code>socialMessageId?</code> (auto-generated when omitted), <code>contact?</code> (merged over <code>config.contact</code> for this message). Always returns <code>socialMessageId</code>. Emits <code>error</code> on API failure.</dd>
+
+        <dt><code>updateContact(options: UpdateContactOptions): Promise&lt;UpdateContactResult&gt;</code></dt>
+        <dd>Set the contact's country, language and attributes without sending a message (<code>POST /webhook/custom/contact</code>). Options: <code>sessionId</code> plus at least one of <code>country</code>, <code>language</code>, <code>attributes</code>. Returns <code>{ success, message?, droppedAttributes? }</code>; <code>success: false</code> when the contact does not exist yet or a field is invalid. Emits <code>error</code> on API failure. See <a href="#contact">Contact details</a>.</dd>
 
         <dt><code>sendMessageStatus(options: SendMessageStatusOptions): Promise&lt;{ success: boolean; message?: string }&gt;</code></dt>
         <dd>Report delivery/read for an agent message. Options: <code>sessionId</code>, <code>socialMessageId</code>, <code>messageType</code> ('READ_UPDATE' | 'DELIVERY_UPDATE' | 'STATUS_UPDATE'), <code>status</code> ('READ' | 'DELIVERED' | 'SENT' | 'FAILED'), <code>visitorName?</code>.</dd>
@@ -152,9 +192,28 @@ client.disconnect();</code></pre>
   baseUrl: string;
   channelId: string;
   secret: string;
-  sessionId?: string;   // required for real-time receive; must not contain ":"
+  sessionId?: string;   // required for real-time receive; must be a UUID
   visitorName?: string;
   requestId?: string;   // sent as X-Request-Id
+  contact?: ContactProfile; // sent with every message
+}
+
+type ContactAttributeValue = string | number | boolean;
+
+interface ContactProfile {
+  country?: string;     // ISO 3166-1 alpha-2/alpha-3, e.g. "NG"
+  language?: string;    // ISO 639-1/639-3; "en-US" → "en"
+  attributes?: Record&lt;string, ContactAttributeValue | null&gt;; // null removes a key
+}
+
+interface UpdateContactOptions extends ContactProfile {
+  sessionId: string;    // the contact must exist (created by the first message)
+}
+
+interface UpdateContactResult {
+  success: boolean;
+  message?: string;
+  droppedAttributes?: string[]; // not saved: contact already has 50 keys
 }
 
 type MessageDeliveryStatus = 'sent' | 'delivered' | 'read' | 'failed';
@@ -166,12 +225,13 @@ interface MessageButton {
 }
 
 interface SendMessageOptions {
-  sessionId: string;    // required; must not contain ":"
+  sessionId: string;    // required; must be a UUID
   visitorName?: string;
   messageType?: 'TEXT' | 'media';
   mediaUrl?: string;    // required when messageType is 'media'
   mediaType?: 'audio' | 'image' | 'video' | 'document';
   socialMessageId?: string | null; // auto-generated when omitted
+  contact?: ContactProfile; // merged over config.contact for this message
 }
 
 interface SendMessageStatusOptions {
@@ -271,10 +331,11 @@ interface ChannelInfoResponse {
           chat</strong> to use the SDK in a real-time chat.</p>
       <p>Use the form below to try the SDK (or the same REST calls if the SDK is not loaded). Fill in your API base URL,
         channel ID (id), secret, and optionally session ID and visitor name. In the chat you can send text, or use
-        <strong>Attach</strong> to upload an image, audio, or document via S3 upload-intents, then send as a media message.</p>
-      <p class="note">The SDK is loaded from <code>unpkg</code> (see script below). Requires
-        <code>awr-client-js-sdk@0.3.0</code> or later for S3 upload-intents, <code>message_status</code>,
-        <code>message_media_ready</code>, and reconnect events.
+        <strong>Attach</strong> to upload an image, audio, or document via S3 upload-intents, then send as a media message.
+        Fill in <strong>Contact details</strong> to set the contact's country, language and attributes.</p>
+      <p class="note">The SDK is loaded from <code>unpkg</code>; if that fails, the page tries a sibling local build at
+        <code>../awr-connect-custom-channel-js-sdk/dist/index.umd.js</code> (see the loader script below). Requires
+        <code>adventist-inbox-sdk@0.6.0</code> or later for contact details (<code>contact</code>, <code>updateContact</code>).
       </p>
 
       <div class="example-panel">
@@ -295,7 +356,7 @@ interface ChannelInfoResponse {
             </div>
             <div class="form-row">
               <label for="sessionId">Session ID</label>
-              <input id="sessionId" type="text" placeholder="e.g. user-session-123 (optional)" value="" />
+              <input id="sessionId" type="text" placeholder="UUID, e.g. crypto.randomUUID() (pre-filled)" value="" />
             </div>
             <div class="form-row">
               <label for="visitorName">Visitor name</label>
@@ -336,6 +397,31 @@ interface ChannelInfoResponse {
             <button type="button" id="btn-chat-send">Send</button>
           </div>
         </div>
+
+        <!-- Contact details: visible in both modes -->
+        <form id="contact-form" class="example-form contact-form" onsubmit="return false">
+          <h3>Contact details</h3>
+          <p class="note">Sent as <code>config.contact</code> when you open the chat, per message with <strong>Send message</strong>,
+            and on demand with <strong>Update contact</strong> (the visitor must have sent a message first).</p>
+          <div class="form-row-pair">
+            <div class="form-row">
+              <label for="contactCountry">Country</label>
+              <input id="contactCountry" type="text" placeholder="e.g. NG" maxlength="3" autocomplete="off" />
+            </div>
+            <div class="form-row">
+              <label for="contactLanguage">Language</label>
+              <input id="contactLanguage" type="text" placeholder="e.g. en-US" autocomplete="off" />
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="contactAttributes">Attributes (JSON object; <code>null</code> removes a key)</label>
+            <textarea id="contactAttributes" rows="3" spellcheck="false"
+              placeholder='{"platform": "web", "appVersion": "1.0.0"}'></textarea>
+          </div>
+          <div class="form-actions">
+            <button type="button" id="btn-update-contact">Update contact</button>
+          </div>
+        </form>
       </div>
     </section>
   </main>
@@ -343,12 +429,35 @@ interface ChannelInfoResponse {
   <footer class="site-footer">
     <div class="container">
       <p>AWR Connect SDK documentation &amp; example implementation. See <code>awr-connect-custom-channel-js-sdk</code>
-        (<code>awr-client-js-sdk</code> on npm) for the package source and <code>TESTING.md</code> for testing against a running API.</p>
+        (<code>adventist-inbox-sdk</code> on npm) for the package source and <code>TESTING.md</code> for testing against a running API.</p>
     </div>
   </footer>
 
-  <script src="https://unpkg.com/awr-client-js-sdk@0.3.0/dist/index.umd.js"></script>
-  <script src="app.js"></script>
+  <script>
+    // Load the SDK from unpkg, falling back to a sibling local build, then start app.js
+    // (app.js falls back to fetch() when no SDK loaded).
+    (function () {
+      var sources = [
+        "https://unpkg.com/adventist-inbox-sdk@0.6.0/dist/index.umd.js",
+        "../awr-connect-custom-channel-js-sdk/dist/index.umd.js",
+      ];
+      function load(src, done) {
+        var s = document.createElement("script");
+        s.src = src;
+        s.onload = function () { done(true); };
+        s.onerror = function () { s.remove(); done(false); };
+        document.body.appendChild(s);
+      }
+      function next(i) {
+        if (i >= sources.length) return load("app.js", function () {});
+        load(sources[i], function (ok) {
+          if (ok) load("app.js", function () {});
+          else next(i + 1);
+        });
+      }
+      next(0);
+    })();
+  </script>
 </body>
 
 </html>
